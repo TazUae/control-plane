@@ -116,16 +116,18 @@ app.post(
       logger.info(
         {
           queue: TENANT_PROVISIONING_QUEUE,
-          jobName: "provision-tenant",
+          jobName: "provision",
           provisioningJobId: result.jobId,
           tenantId: result.tenantId,
         },
         "Enqueueing provisioning job"
       );
+      console.log("enqueue start");
 
-      const queueJob = await provisioningQueue.add("provision-tenant", {
+      const queueJob = await provisioningQueue.add("provision", {
         jobId: result.jobId,
       });
+      console.log("enqueue success", queueJob.id);
 
       logger.info(
         {
