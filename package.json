@@ -6,6 +6,7 @@
     "dev": "tsx src/server.ts",
     "worker": "tsx scripts/worker.ts",
     "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "start:api": "node dist/src/server.js",
     "start": "node dist/src/server.js",
     "start:worker": "node dist/scripts/worker.js",
     "prisma:generate": "prisma generate",

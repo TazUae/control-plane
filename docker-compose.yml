@@ -9,10 +9,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@control-plane-postgres:5432/controlplane
+      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD:-change-me-postgres-password}@control-plane-postgres:5432/controlplane
       REDIS_URL: redis://control-plane-redis:6379
-      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:?CONTROL_PLANE_API_KEY is required}
-      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:?ERP_CONTAINER_NAME is required}
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:-change-me-very-long-control-plane-api-key}
+      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:-axiserp-erpnext-pnzjyk-backend-1}
       ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN:-erp.local}
       ERP_BENCH_PATH: ${ERP_BENCH_PATH:-/home/frappe/frappe-bench}
       LOG_LEVEL: info
@@ -44,10 +44,10 @@ services:
     init: true
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@control-plane-postgres:5432/controlplane
+      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD:-change-me-postgres-password}@control-plane-postgres:5432/controlplane
       REDIS_URL: redis://control-plane-redis:6379
-      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:?CONTROL_PLANE_API_KEY is required}
-      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:?ERP_CONTAINER_NAME is required}
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:-change-me-very-long-control-plane-api-key}
+      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:-axiserp-erpnext-pnzjyk-backend-1}
       ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN:-erp.local}
       ERP_BENCH_PATH: ${ERP_BENCH_PATH:-/home/frappe/frappe-bench}
       LOG_LEVEL: info
@@ -65,7 +65,7 @@ services:
     environment:
       POSTGRES_DB: controlplane
       POSTGRES_USER: cp_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-postgres-password}
     volumes:
       - cp_pg_data:/var/lib/postgresql/data
     networks:
