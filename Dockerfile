@@ -1,19 +1,22 @@
-FROM node:20-slim AS deps
+FROM node:20-slim AS base
 WORKDIR /app
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+FROM base AS deps
 COPY package*.json ./
 RUN npm ci
 
-FROM node:20-slim AS build
-WORKDIR /app
+FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN npx prisma generate && npm run build
 
-FROM node:20-slim AS runtime
-WORKDIR /app
+FROM base AS runner
 ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev
-COPY --from=build /app/dist ./dist
 COPY prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /app/dist ./dist
 CMD ["node", "dist/src/server.js"]
