@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////////
+
+enum TenantStatus {
+  provisioning
+  active
+  suspended
+  archived
+}
+
+enum ProvisioningStatus {
+  queued
+  running
+  failed
+  completed
+}
+
+//////////////////////////////////////////////////////
+// CORE MODELS
+//////////////////////////////////////////////////////
+
+model Tenant {
+  id        String       @id @default(uuid())
+  slug      String       @unique
+  status    TenantStatus
+  erpSite   String?
+  erpDbName String?
+  plan      String
+  region    String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  domains   TenantDomain[]
+  jobs      ProvisioningJob[]
+}
+
+model TenantDomain {
+  id            String   @id @default(uuid())
+  domain        String   @unique
+  tenantId      String
+  isPrimary     Boolean  @default(false)
+  isVerified    Boolean  @default(false)
+  dnsStatus     String   @default("unknown")
+  sslStatus     String   @default("unknown")
+  routingStatus String   @default("pending")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+//////////////////////////////////////////////////////
+// PROVISIONING SYSTEM
+//////////////////////////////////////////////////////
+
+model ProvisioningJob {
+  id            String               @id @default(uuid())
+  tenantId      String
+  status        ProvisioningStatus
+  currentStep   String
+  attemptCount  Int                  @default(0)
+  payload       Json?
+  result        Json?
+  failureReason String?
+  createdAt     DateTime             @default(now())
+  finishedAt    DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  steps  ProvisioningStepRun[]
+}
+
+model ProvisioningStepRun {
+  id         String   @id @default(uuid())
+  jobId      String
+  step       String
+  status     String
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  error      String?
+
+  job ProvisioningJob @relation(fields: [jobId], references: [id])
+}
+
+//////////////////////////////////////////////////////
+// PLATFORM CONTROL LAYER
+//////////////////////////////////////////////////////
+
+model IdempotencyKey {
+  id        String   @id
+  key       String   @unique
+  payloadHash String
+  response  Json?
+  createdAt DateTime @default(now())
+}
+
+model AuditEvent {
+  id        String   @id @default(uuid())
+  type      String
+  tenantId  String?
+  payload   Json
+  createdAt DateTime @default(now())
+}

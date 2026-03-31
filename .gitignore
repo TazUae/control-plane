@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.env
+*.log
+erp-worker/node_modules/
+erp-worker/*.log
