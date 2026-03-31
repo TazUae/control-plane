@@ -118,6 +118,12 @@ app.post(
         };
       });
 
+      if (!result.jobId) {
+        throw new Error("Provisioning jobId missing before enqueue");
+      }
+
+      console.log("enqueue payload", result.jobId, result.tenantId);
+
       console.log("ENQUEUE START", { jobId: result.jobId, queue: "tenant-provisioning" });
 
       const queueJob = await tenantQueue.add("provision", {
