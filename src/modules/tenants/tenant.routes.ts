@@ -1,6 +1,6 @@
 import { app } from "../../app.js";
 import { prisma } from "../../lib/prisma.js";
-import { provisioningQueue } from "../../lib/queue.js";
+import { Queue } from "bullmq";
 import {
   idempotencyMiddleware,
   IdempotencyContext,
@@ -9,8 +9,13 @@ import { acquireLock, releaseLock } from "../../jobs/lock.js";
 import crypto from "crypto";
 import { CreateTenantSchema } from "./tenant.schemas.js";
 import { requireInternalApiKey } from "../../middleware/require-internal-api-key.js";
-import { logger } from "../../lib/logger.js";
-import { TENANT_PROVISIONING_QUEUE } from "../../lib/constants.js";
+
+export const tenantQueue = new Queue("tenant-provisioning", {
+  connection: {
+    host: "control-plane-redis",
+    port: 6379,
+  },
+});
 
 function isPrismaUniqueConstraintError(error: unknown): boolean {
   return (
@@ -113,40 +118,35 @@ app.post(
         };
       });
 
-      logger.info(
-        {
-          queue: TENANT_PROVISIONING_QUEUE,
-          jobName: "provision",
-          provisioningJobId: result.jobId,
-          tenantId: result.tenantId,
-        },
-        "Enqueueing provisioning job"
-      );
-      console.log("enqueue start");
+      console.log("ENQUEUE START");
 
-      const queueJob = await provisioningQueue.add("provision", {
-        jobId: result.jobId,
+      const queueJob = await tenantQueue.add("provision", {
+        tenantId: result.tenantId,
+        slug,
+        plan,
+        region,
       });
-      console.log("enqueue success", queueJob.id);
 
-      logger.info(
-        {
-          queue: TENANT_PROVISIONING_QUEUE,
-          queueJobId: queueJob.id,
-          provisioningJobId: result.jobId,
-          tenantId: result.tenantId,
-        },
-        "Provisioning job enqueued"
-      );
+      console.log("ENQUEUE SUCCESS:", queueJob.id);
 
       if (idem) {
         await prisma.idempotencyKey.update({
           where: { key: idem.key },
-          data: { response: result },
+          data: {
+            response: {
+              tenantId: result.tenantId,
+              jobId: queueJob.id,
+              status: "queued",
+            },
+          },
         });
       }
 
-      return result;
+      return {
+        tenantId: result.tenantId,
+        jobId: queueJob.id,
+        status: "queued" as const,
+      };
     } catch (error) {
       if (idem) {
         await prisma.idempotencyKey.deleteMany({
