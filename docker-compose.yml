@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   control-plane-api:
     build:
@@ -11,12 +9,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD}@control-plane-postgres:5432/controlplane
+      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@control-plane-postgres:5432/controlplane
       REDIS_URL: redis://control-plane-redis:6379
-      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY}
-      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME}
-      ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN}
-      ERP_BENCH_PATH: ${ERP_BENCH_PATH}
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:?CONTROL_PLANE_API_KEY is required}
+      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:?ERP_CONTAINER_NAME is required}
+      ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN:-erp.local}
+      ERP_BENCH_PATH: ${ERP_BENCH_PATH:-/home/frappe/frappe-bench}
       LOG_LEVEL: info
     depends_on:
       control-plane-postgres:
@@ -46,12 +44,12 @@ services:
     init: true
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD}@control-plane-postgres:5432/controlplane
+      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@control-plane-postgres:5432/controlplane
       REDIS_URL: redis://control-plane-redis:6379
-      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY}
-      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME}
-      ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN}
-      ERP_BENCH_PATH: ${ERP_BENCH_PATH}
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:?CONTROL_PLANE_API_KEY is required}
+      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:?ERP_CONTAINER_NAME is required}
+      ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN:-erp.local}
+      ERP_BENCH_PATH: ${ERP_BENCH_PATH:-/home/frappe/frappe-bench}
       LOG_LEVEL: info
     depends_on:
       control-plane-postgres:
@@ -67,7 +65,7 @@ services:
     environment:
       POSTGRES_DB: controlplane
       POSTGRES_USER: cp_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - cp_pg_data:/var/lib/postgresql/data
     networks:
@@ -75,10 +73,11 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - pg_isready -U cp_user -d controlplane
+        - pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
 
   control-plane-redis:
     image: redis:7
