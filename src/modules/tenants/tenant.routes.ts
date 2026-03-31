@@ -118,16 +118,20 @@ app.post(
         };
       });
 
-      console.log("ENQUEUE START");
+      console.log("ENQUEUE START", { jobId: result.jobId, queue: "tenant-provisioning" });
 
       const queueJob = await tenantQueue.add("provision", {
+        jobId: result.jobId,
         tenantId: result.tenantId,
         slug,
         plan,
         region,
       });
 
-      console.log("ENQUEUE SUCCESS:", queueJob.id);
+      console.log("ENQUEUE SUCCESS", {
+        jobId: result.jobId,
+        queueJobId: queueJob.id,
+      });
 
       if (idem) {
         await prisma.idempotencyKey.update({
@@ -135,7 +139,8 @@ app.post(
           data: {
             response: {
               tenantId: result.tenantId,
-              jobId: queueJob.id,
+              jobId: result.jobId,
+              queueJobId: queueJob.id,
               status: "queued",
             },
           },
@@ -144,7 +149,8 @@ app.post(
 
       return {
         tenantId: result.tenantId,
-        jobId: queueJob.id,
+        jobId: result.jobId,
+        queueJobId: queueJob.id,
         status: "queued" as const,
       };
     } catch (error) {
