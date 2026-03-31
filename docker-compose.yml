@@ -1,0 +1,110 @@
+version: "3.9"
+
+services:
+  control-plane-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -lc "npx prisma migrate deploy && npm run start:api"
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD}@control-plane-postgres:5432/controlplane
+      REDIS_URL: redis://control-plane-redis:6379
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY}
+      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME}
+      ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN}
+      ERP_BENCH_PATH: ${ERP_BENCH_PATH}
+      LOG_LEVEL: info
+    depends_on:
+      control-plane-postgres:
+        condition: service_healthy
+      control-plane-redis:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+      - control-plane-internal
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - require('http').get('http://127.0.0.1:4000/health', r => process.exit(r.statusCode===200?0:1)).on('error', () => process.exit(1))
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  control-plane-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -lc "npm run start:worker"
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD}@control-plane-postgres:5432/controlplane
+      REDIS_URL: redis://control-plane-redis:6379
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY}
+      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME}
+      ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN}
+      ERP_BENCH_PATH: ${ERP_BENCH_PATH}
+      LOG_LEVEL: info
+    depends_on:
+      control-plane-postgres:
+        condition: service_healthy
+      control-plane-redis:
+        condition: service_healthy
+    networks:
+      - control-plane-internal
+
+  control-plane-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: controlplane
+      POSTGRES_USER: cp_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - cp_pg_data:/var/lib/postgresql/data
+    networks:
+      - control-plane-internal
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U cp_user -d controlplane
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  control-plane-redis:
+    image: redis:7
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - yes
+    volumes:
+      - cp_redis_data:/data
+    networks:
+      - control-plane-internal
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cp_pg_data:
+  cp_redis_data:
+
+networks:
+  dokploy-network:
+    external: true
+  control-plane-internal:
