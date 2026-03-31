@@ -8,8 +8,16 @@ import {
 import { acquireLock, releaseLock } from "../../jobs/lock.js";
 import crypto from "crypto";
 import { CreateTenantSchema } from "./tenant.schemas.js";
-import { Prisma } from "@prisma/client";
 import { requireInternalApiKey } from "../../middleware/require-internal-api-key.js";
+
+function isPrismaUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2002"
+  );
+}
 
 app.post(
   "/tenants",
@@ -40,7 +48,7 @@ app.post(
           },
         });
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        if (isPrismaUniqueConstraintError(error)) {
           const existing = await prisma.idempotencyKey.findUnique({ where: { key: idem.key } });
           if (!existing) {
             return reply.code(409).send({ error: "Unable to reserve idempotency key" });
@@ -70,7 +78,7 @@ app.post(
     }
 
     try {
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         const tenant = await tx.tenant.create({
           data: {
             slug,
@@ -122,7 +130,7 @@ app.post(
         });
       }
 
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      if (isPrismaUniqueConstraintError(error)) {
         return reply.code(409).send({ error: "Tenant with this slug already exists" });
       }
 

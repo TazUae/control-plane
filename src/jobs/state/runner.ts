@@ -25,7 +25,7 @@ export async function runProvisioning(jobId: string) {
       where: { jobId, status: "completed" },
     });
 
-    const completedSet = new Set(completedSteps.map(s => s.step));
+    const completedSet = new Set(completedSteps.map((s: { step: string }) => s.step));
 
     for (const step of steps) {
       if (completedSet.has(step)) {
