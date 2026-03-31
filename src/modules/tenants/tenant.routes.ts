@@ -9,6 +9,8 @@ import { acquireLock, releaseLock } from "../../jobs/lock.js";
 import crypto from "crypto";
 import { CreateTenantSchema } from "./tenant.schemas.js";
 import { requireInternalApiKey } from "../../middleware/require-internal-api-key.js";
+import { logger } from "../../lib/logger.js";
+import { TENANT_PROVISIONING_QUEUE } from "../../lib/constants.js";
 
 function isPrismaUniqueConstraintError(error: unknown): boolean {
   return (
@@ -111,7 +113,29 @@ app.post(
         };
       });
 
-      await provisioningQueue.add("provision-tenant", { jobId: result.jobId });
+      logger.info(
+        {
+          queue: TENANT_PROVISIONING_QUEUE,
+          jobName: "provision-tenant",
+          provisioningJobId: result.jobId,
+          tenantId: result.tenantId,
+        },
+        "Enqueueing provisioning job"
+      );
+
+      const queueJob = await provisioningQueue.add("provision-tenant", {
+        jobId: result.jobId,
+      });
+
+      logger.info(
+        {
+          queue: TENANT_PROVISIONING_QUEUE,
+          queueJobId: queueJob.id,
+          provisioningJobId: result.jobId,
+          tenantId: result.tenantId,
+        },
+        "Provisioning job enqueued"
+      );
 
       if (idem) {
         await prisma.idempotencyKey.update({

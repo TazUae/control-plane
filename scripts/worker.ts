@@ -8,7 +8,14 @@ import { prisma } from "../src/lib/prisma.js";
 const worker = new Worker(
   TENANT_PROVISIONING_QUEUE,
   async (job) => {
-    logger.info({ jobId: job.data.jobId }, "Processing job");
+    logger.info(
+      {
+        queue: TENANT_PROVISIONING_QUEUE,
+        queueJobId: job.id,
+        payload: job.data,
+      },
+      "Worker received job"
+    );
     await runProvisioning(job.data.jobId);
   },
   { connection: redis }
