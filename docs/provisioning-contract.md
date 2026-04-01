@@ -4,10 +4,10 @@ This document describes the shared HTTP contract shapes defined in `src/lib/prov
 
 ## Environment Variables
 
-- `PROVISIONING_API_URL`: Base URL of the provisioning service. If set, the Control Plane uses the HTTP adapter.
+- `PROVISIONING_API_URL`: Base URL of the provisioning service. In production, this is required and the Control Plane uses the HTTP adapter.
 - `PROVISIONING_API_TOKEN`: Bearer token used as `Authorization: Bearer <token>` for outbound provisioning requests.
 - `PROVISIONING_API_TIMEOUT_MS`: Request timeout in milliseconds for HTTP adapter calls (default `120000`).
-- If `PROVISIONING_API_URL` is not set, Control Plane falls back to the temporary Docker adapter.
+- In development/test only, if `PROVISIONING_API_URL` is not set, Control Plane falls back to the temporary Docker adapter.
 
 ## Deployment Networking Assumptions
 
@@ -15,6 +15,7 @@ This document describes the shared HTTP contract shapes defined in `src/lib/prov
 - `PROVISIONING_API_URL` should point to the internal service DNS name (example: `http://provisioning-agent:8080`).
 - `provisioning-agent` should remain internal-only and not publicly exposed by default.
 - Control Plane sends bearer auth to the provisioning agent using `PROVISIONING_API_TOKEN`.
+- Dokploy should keep `provisioning-agent` without a public domain/ingress and only on internal/private networking.
 
 ## Execution Ownership
 
@@ -58,7 +59,7 @@ Example success:
   "ok": true,
   "data": {
     "status": "ok",
-    "service": "provisioning-service",
+    "service": "provisioning-agent",
     "version": "1.0.0"
   },
   "timestamp": "2026-04-01T15:00:00.000Z"

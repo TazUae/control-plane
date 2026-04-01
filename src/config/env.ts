@@ -13,6 +13,14 @@ const EnvSchema = z.object({
   ERP_CONTAINER_NAME: z.string().min(1).default("axiserp-erpnext-pnzjyk-backend-1"),
   ERP_ADMIN_PASSWORD: z.string().min(8),
 }).superRefine((data, ctx) => {
+  if (data.NODE_ENV === "production" && !data.PROVISIONING_API_URL) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["PROVISIONING_API_URL"],
+      message: "PROVISIONING_API_URL is required in production",
+    });
+  }
+
   if (data.PROVISIONING_API_URL && !data.PROVISIONING_API_TOKEN) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

@@ -43,6 +43,7 @@ Internal-only provisioning service for ERP host actions.
 - Do not publish this service on a public domain by default.
 - Attach the container only to internal/private networks in Dokploy.
 - Allow inbound traffic only from trusted internal services (for example, the Control Plane API).
+- Recommended Dokploy setup: no public ingress/domain, internal service name `provisioning-agent`, and shared private network with Control Plane.
 
 ### Required Environment Variables
 
@@ -65,6 +66,12 @@ Internal-only provisioning service for ERP host actions.
 ### Example Control Plane URL
 
 - `http://provisioning-agent:8080`
+- Control Plane should set `PROVISIONING_API_URL=http://provisioning-agent:8080` in deployment configuration.
+
+### Health Expectations
+
+- Dokploy health check target: `GET /health`.
+- Expected response: HTTP `200` with envelope `ok: true`, and `data.status: "ok"`, `data.service: "provisioning-agent"`.
 
 ## Notes
 

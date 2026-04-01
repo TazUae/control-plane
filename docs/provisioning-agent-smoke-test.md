@@ -24,5 +24,6 @@ This verifies Control Plane can execute provisioning over HTTP with `provisionin
 
 ## Fallback Check
 
-- Unset `PROVISIONING_API_URL` and restart Control Plane.
+- In development/test only, unset `PROVISIONING_API_URL` and restart Control Plane.
 - Confirm logs show adapter selection with `fallbackToDocker: true`.
+- In production, missing `PROVISIONING_API_URL` should fail startup fast with configuration validation error.

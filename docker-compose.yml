@@ -12,6 +12,8 @@ services:
       DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD:-change-me-postgres-password}@control-plane-postgres:5432/controlplane
       REDIS_URL: redis://control-plane-redis:6379
       CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:-change-me-very-long-control-plane-api-key}
+      PROVISIONING_API_URL: ${PROVISIONING_API_URL:-http://provisioning-agent:8080}
+      PROVISIONING_API_TOKEN: ${PROVISIONING_API_TOKEN:-change-me-very-long-internal-provisioning-token}
       ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:-axiserp-erpnext-pnzjyk-backend-1}
       ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:-change-me-erp-admin-password}
       ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN:-erp.local}
@@ -48,6 +50,8 @@ services:
       DATABASE_URL: postgresql://cp_user:${POSTGRES_PASSWORD:-change-me-postgres-password}@control-plane-postgres:5432/controlplane
       REDIS_URL: redis://control-plane-redis:6379
       CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:-change-me-very-long-control-plane-api-key}
+      PROVISIONING_API_URL: ${PROVISIONING_API_URL:-http://provisioning-agent:8080}
+      PROVISIONING_API_TOKEN: ${PROVISIONING_API_TOKEN:-change-me-very-long-internal-provisioning-token}
       ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:-axiserp-erpnext-pnzjyk-backend-1}
       ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:-change-me-erp-admin-password}
       ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN:-erp.local}
