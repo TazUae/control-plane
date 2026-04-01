@@ -1,4 +1,5 @@
 import { FastifyReply, FastifyRequest } from "fastify";
+import crypto from "node:crypto";
 import { env } from "../config/env.js";
 
 export async function requireBearerToken(req: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -17,7 +18,13 @@ export async function requireBearerToken(req: FastifyRequest, reply: FastifyRepl
   }
 
   const token = auth.slice("Bearer ".length).trim();
-  if (!token || token !== env.PROVISIONING_API_TOKEN) {
+  const tokenBuffer = Buffer.from(token);
+  const expectedBuffer = Buffer.from(env.PROVISIONING_API_TOKEN);
+  const valid =
+    tokenBuffer.length === expectedBuffer.length &&
+    crypto.timingSafeEqual(tokenBuffer, expectedBuffer);
+
+  if (!token || !valid) {
     void reply.code(403).send({
       ok: false,
       error: {

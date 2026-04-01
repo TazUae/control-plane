@@ -11,7 +11,7 @@ const EnvSchema = z.object({
   PROVISIONING_API_TOKEN: z.string().min(16).optional(),
   PROVISIONING_API_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(120_000),
   ERP_CONTAINER_NAME: z.string().min(1).default("axiserp-erpnext-pnzjyk-backend-1"),
-  ERP_ADMIN_PASSWORD: z.string().min(8).default("admin"),
+  ERP_ADMIN_PASSWORD: z.string().min(8),
 }).superRefine((data, ctx) => {
   if (data.PROVISIONING_API_URL && !data.PROVISIONING_API_TOKEN) {
     ctx.addIssue({

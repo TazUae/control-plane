@@ -1,7 +1,7 @@
 import { pino } from "pino";
 import { env } from "../config/env.js";
 
-export const logger = pino({
+export const loggerConfig = {
   level: env.NODE_ENV === "production" ? "info" : "debug",
   redact: {
     paths: ["req.headers.authorization", "authorization", "token", "password", "secret"],
@@ -15,4 +15,6 @@ export const logger = pino({
         },
       }
     : {}),
-});
+};
+
+export const logger = pino(loggerConfig);
