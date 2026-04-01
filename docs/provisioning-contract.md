@@ -2,6 +2,12 @@
 
 This document describes the shared HTTP contract shapes defined in `src/lib/provisioning/contract.ts`.
 
+## Environment Variables
+
+- `PROVISIONING_API_URL`: Base URL of the provisioning service. If set, the Control Plane uses the HTTP adapter.
+- `PROVISIONING_API_TOKEN`: Bearer token used as `Authorization: Bearer <token>` for outbound provisioning requests.
+- `PROVISIONING_API_TIMEOUT_MS`: Request timeout in milliseconds for HTTP adapter calls (default `120000`).
+
 ## Response Envelope
 
 Success responses:

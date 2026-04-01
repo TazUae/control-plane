@@ -7,8 +7,19 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().url(),
   CONTROL_PLANE_API_KEY: z.string().min(16),
+  PROVISIONING_API_URL: z.string().url().optional(),
+  PROVISIONING_API_TOKEN: z.string().min(16).optional(),
+  PROVISIONING_API_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(120_000),
   ERP_CONTAINER_NAME: z.string().min(1).default("axiserp-erpnext-pnzjyk-backend-1"),
   ERP_ADMIN_PASSWORD: z.string().min(8).default("admin"),
+}).superRefine((data, ctx) => {
+  if (data.PROVISIONING_API_URL && !data.PROVISIONING_API_TOKEN) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["PROVISIONING_API_TOKEN"],
+      message: "PROVISIONING_API_TOKEN is required when PROVISIONING_API_URL is set",
+    });
+  }
 });
 
 const parsed = EnvSchema.safeParse(process.env);
