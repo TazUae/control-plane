@@ -11,7 +11,14 @@ export function getProvisioningAdapter(): ProvisioningAdapter {
     adapter = env.PROVISIONING_API_URL
       ? new HttpProvisioningAdapter()
       : new DockerBenchProvisioningAdapter();
-    logger.info({ adapter: adapter.kind }, "Provisioning adapter selected");
+    logger.info(
+      {
+        adapter: adapter.kind,
+        provisioningApiConfigured: Boolean(env.PROVISIONING_API_URL),
+        fallbackToDocker: adapter.kind === "docker-bench",
+      },
+      "Provisioning adapter selected"
+    );
   }
   return adapter;
 }

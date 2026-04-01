@@ -7,6 +7,14 @@ This document describes the shared HTTP contract shapes defined in `src/lib/prov
 - `PROVISIONING_API_URL`: Base URL of the provisioning service. If set, the Control Plane uses the HTTP adapter.
 - `PROVISIONING_API_TOKEN`: Bearer token used as `Authorization: Bearer <token>` for outbound provisioning requests.
 - `PROVISIONING_API_TIMEOUT_MS`: Request timeout in milliseconds for HTTP adapter calls (default `120000`).
+- If `PROVISIONING_API_URL` is not set, Control Plane falls back to the temporary Docker adapter.
+
+## Deployment Networking Assumptions
+
+- In deployment mode, Control Plane and `provisioning-agent` run on the same internal Docker network.
+- `PROVISIONING_API_URL` should point to the internal service DNS name (example: `http://provisioning-agent:8080`).
+- `provisioning-agent` should remain internal-only and not publicly exposed by default.
+- Control Plane sends bearer auth to the provisioning agent using `PROVISIONING_API_TOKEN`.
 
 ## Response Envelope
 
