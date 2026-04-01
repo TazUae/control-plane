@@ -47,3 +47,9 @@
 - [ ] HTTP adapter is selectable and production-safe behind env gating.
 - [ ] No unintended schema or flow regressions detected.
 - [ ] Operational logs and error semantics remain consistent.
+
+## Legacy Docker Path Status
+
+- Direct docker execution from Control Plane is deprecated.
+- Remaining docker adapter exists only as temporary fallback when `PROVISIONING_API_URL` is unset.
+- Production target architecture is Control Plane orchestration + provisioning-agent execution.

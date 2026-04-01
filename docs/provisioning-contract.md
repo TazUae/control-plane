@@ -16,6 +16,12 @@ This document describes the shared HTTP contract shapes defined in `src/lib/prov
 - `provisioning-agent` should remain internal-only and not publicly exposed by default.
 - Control Plane sends bearer auth to the provisioning agent using `PROVISIONING_API_TOKEN`.
 
+## Execution Ownership
+
+- Provisioning command execution belongs to `provisioning-agent` in production architecture.
+- Control Plane worker orchestrates step state and retries, then calls the provisioning interface over HTTP.
+- Direct docker execution inside Control Plane is a temporary legacy fallback and is deprecated.
+
 ## Response Envelope
 
 Success responses:

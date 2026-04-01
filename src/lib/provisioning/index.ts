@@ -8,6 +8,7 @@ let adapter: ProvisioningAdapter | null = null;
 
 export function getProvisioningAdapter(): ProvisioningAdapter {
   if (!adapter) {
+    // Deployment mode: prefer provisioning-agent over direct host docker execution.
     adapter = env.PROVISIONING_API_URL
       ? new HttpProvisioningAdapter()
       : new DockerBenchProvisioningAdapter();

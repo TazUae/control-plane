@@ -17,6 +17,10 @@ const BENCH_CWD = "/home/frappe/frappe-bench";
 const DEFAULT_TIMEOUT_MS = 120_000;
 
 export class DockerBenchProvisioningAdapter implements ProvisioningAdapter {
+  /**
+   * @deprecated Temporary fallback only.
+   * Preferred production execution path is HTTP via provisioning-agent.
+   */
   public readonly kind = "docker-bench" as const;
 
   async createSite(site: string): Promise<ProvisioningOperationResult> {
