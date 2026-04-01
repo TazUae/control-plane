@@ -127,3 +127,34 @@ test("maps aborted request to ERP_TIMEOUT", async () => {
     }
   );
 });
+
+test("accepts idempotent already-done success payload", async () => {
+  const HttpProvisioningAdapter = await loadHttpAdapter();
+  const adapter = new HttpProvisioningAdapter({
+    baseUrl: "https://provisioning.example.com",
+    token: "token-token-token-token",
+    fetchFn: async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            action: "createSite",
+            site: "acme",
+            outcome: "already_done",
+            alreadyExists: true,
+            message: "Site already exists",
+          },
+          timestamp,
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      ),
+  });
+
+  const result = await adapter.createSite("acme");
+  assert.equal(result.action, "createSite");
+  assert.equal(result.outcome, "already_done");
+  assert.equal(result.alreadyExists, true);
+});

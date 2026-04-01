@@ -42,6 +42,19 @@ export const ProvisioningOperationResultSchema = z.object({
   action: z.string().min(1),
   site: z.string().trim().min(1),
   message: z.string().min(1).optional(),
+  /**
+   * Idempotent outcome marker:
+   * - "applied": action was performed during this call
+   * - "already_done": desired state already existed before this call
+   */
+  outcome: z.enum(["applied", "already_done"]).default("applied"),
+  /**
+   * Backward-compatible hints that the operation was already in the desired state.
+   * Provisioning services may set one or more of these depending on endpoint semantics.
+   */
+  alreadyExists: z.boolean().optional(),
+  alreadyInstalled: z.boolean().optional(),
+  alreadyConfigured: z.boolean().optional(),
   stdout: z.string().optional(),
   stderr: z.string().optional(),
   durationMs: z.number().int().nonnegative().optional(),

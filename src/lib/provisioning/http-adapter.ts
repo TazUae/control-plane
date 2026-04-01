@@ -104,6 +104,10 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     }
     return {
       action: success.data.data.action || action,
+      outcome: success.data.data.outcome,
+      alreadyExists: success.data.data.alreadyExists,
+      alreadyInstalled: success.data.data.alreadyInstalled,
+      alreadyConfigured: success.data.data.alreadyConfigured,
       stdout: success.data.data.stdout,
       stderr: success.data.data.stderr,
     };

@@ -57,6 +57,17 @@ Example success:
 ## POST `/sites/add-domain`
 ## POST `/sites/create-api-user`
 
+These endpoints are expected to be idempotent by design. Repeated calls for the same target state should return a success envelope, even when the operation was already completed previously.
+
+Expected idempotent success semantics:
+
+- `alreadyExists`: use for create-style operations such as `/sites/create`.
+- `alreadyInstalled`: use for install operations such as `/sites/install-erp`.
+- `alreadyConfigured`: use for configuration operations such as scheduler/domain/api-user steps.
+- `outcome`:
+  - `applied`: operation changed state during this request.
+  - `already_done`: operation was already in the desired state before this request.
+
 Example request payload for all site operation endpoints:
 
 ```json
@@ -78,9 +89,26 @@ Example success payload:
     "action": "createSite",
     "site": "acme",
     "message": "Site created",
+    "outcome": "applied",
     "stdout": "ok",
     "stderr": "",
     "durationMs": 940
+  },
+  "timestamp": "2026-04-01T15:00:00.000Z"
+}
+```
+
+Example idempotent success payload ("already done"):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "action": "createSite",
+    "site": "acme",
+    "message": "Site already exists",
+    "outcome": "already_done",
+    "alreadyExists": true
   },
   "timestamp": "2026-04-01T15:00:00.000Z"
 }

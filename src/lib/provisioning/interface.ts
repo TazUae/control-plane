@@ -1,5 +1,9 @@
 export type ProvisioningOperationResult = {
   action: string;
+  outcome?: "applied" | "already_done";
+  alreadyExists?: boolean;
+  alreadyInstalled?: boolean;
+  alreadyConfigured?: boolean;
   stdout?: string;
   stderr?: string;
 };
