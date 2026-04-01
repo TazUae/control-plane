@@ -3,63 +3,135 @@ import { AgentError } from "../../lib/errors.js";
 import { execCommand } from "../../lib/exec.js";
 import { ProvisioningOperationResult } from "../../contracts/provisioning.js";
 import { AllowedProvisioningAction, buildBenchArgs } from "./commands.js";
+import { env } from "../../config/env.js";
+import { validateDomain, validateSite, validateUsername } from "./validation.js";
 
-const DEFAULT_TIMEOUT_MS = 120_000;
+function redactSensitiveText(value: string): string {
+  return value
+    .replace(/(password\s*[:=]\s*)([^\s]+)/gi, "$1[REDACTED]")
+    .replace(/(token\s*[:=]\s*)([^\s]+)/gi, "$1[REDACTED]")
+    .replace(/(secret\s*[:=]\s*)([^\s]+)/gi, "$1[REDACTED]");
+}
+
+type IdempotentOutcome = {
+  outcome: "already_done";
+  message: string;
+  alreadyExists?: boolean;
+  alreadyInstalled?: boolean;
+  alreadyConfigured?: boolean;
+};
+
+export function detectIdempotentOutcome(
+  action: AllowedProvisioningAction,
+  stdout: string,
+  stderr: string
+): IdempotentOutcome | null {
+  const combined = `${stdout}\n${stderr}`.toLowerCase();
+
+  if (action === "createSite" && combined.includes("already exists")) {
+    return {
+      outcome: "already_done",
+      message: "Site already exists",
+      alreadyExists: true,
+    };
+  }
+
+  if (action === "installErp" && (combined.includes("already installed") || combined.includes("is installed"))) {
+    return {
+      outcome: "already_done",
+      message: "ERPNext app already installed",
+      alreadyInstalled: true,
+    };
+  }
+
+  if (action === "enableScheduler" && combined.includes("scheduler is already enabled")) {
+    return {
+      outcome: "already_done",
+      message: "Scheduler already enabled",
+      alreadyConfigured: true,
+    };
+  }
+
+  if (action === "addDomain" && (combined.includes("domain already exists") || combined.includes("duplicate entry"))) {
+    return {
+      outcome: "already_done",
+      message: "Domain already configured",
+      alreadyConfigured: true,
+    };
+  }
+
+  return null;
+}
 
 export class ErpnextExecutor {
   async run(action: AllowedProvisioningAction, site: string): Promise<ProvisioningOperationResult> {
-    const args = buildBenchArgs(action, site);
+    const safeSite = validateSite(site);
+    const derivedDomain = validateDomain(`${safeSite}.${env.ERP_BASE_DOMAIN}`);
+    const derivedApiUsername = validateUsername(`${env.ERP_API_USERNAME_PREFIX}_${safeSite}`);
+    const args = buildBenchArgs(action, {
+      site: safeSite,
+      domain: derivedDomain,
+      apiUsername: derivedApiUsername,
+    });
     logger.info({ provider: "erpnext", action, site }, "ERP action started");
 
     try {
-      const result = await execCommand("docker", args, { timeoutMs: DEFAULT_TIMEOUT_MS });
+      const result = await execCommand("docker", args, { timeoutMs: env.ERP_COMMAND_TIMEOUT_MS });
       logger.info({ provider: "erpnext", action, site, durationMs: result.durationMs }, "ERP action succeeded");
       return {
         action,
-        site,
+        site: safeSite,
         outcome: "applied",
         stdout: result.stdout,
         stderr: result.stderr,
         durationMs: result.durationMs,
       };
     } catch (error) {
-      const mapped = this.mapDomainError(error);
+      const typed = error instanceof AgentError
+        ? error
+        : new AgentError("ERP_PARTIAL_SUCCESS", "Unexpected ERP executor failure", {
+            details: error instanceof Error ? error.message : String(error),
+            retryable: false,
+            statusCode: 500,
+          });
+
+      const idempotent = detectIdempotentOutcome(action, typed.stdout ?? "", typed.stderr ?? "");
+      if (idempotent) {
+        logger.info(
+          {
+            provider: "erpnext",
+            action,
+            site: safeSite,
+            idempotent: true,
+          },
+          "ERP action already satisfied"
+        );
+        return {
+          action,
+          site: safeSite,
+          outcome: idempotent.outcome,
+          message: idempotent.message,
+          alreadyExists: idempotent.alreadyExists,
+          alreadyInstalled: idempotent.alreadyInstalled,
+          alreadyConfigured: idempotent.alreadyConfigured,
+          stdout: typed.stdout,
+          stderr: typed.stderr,
+        };
+      }
+
       logger.error(
         {
           provider: "erpnext",
           action,
-          site,
-          code: mapped.code,
-          retryable: mapped.retryable,
-          stderr: mapped.stderr,
-          stdout: mapped.stdout,
+          site: safeSite,
+          code: typed.code,
+          retryable: typed.retryable,
+          stderr: redactSensitiveText(typed.stderr ?? ""),
+          stdout: redactSensitiveText(typed.stdout ?? ""),
         },
         "ERP action failed"
       );
-      throw mapped;
+      throw typed;
     }
-  }
-
-  private mapDomainError(error: unknown): AgentError {
-    if (!(error instanceof AgentError)) {
-      return new AgentError("ERP_PARTIAL_SUCCESS", "Unexpected ERP executor failure", {
-        details: error instanceof Error ? error.message : String(error),
-        retryable: false,
-        statusCode: 500,
-      });
-    }
-
-    const combined = `${error.stdout ?? ""}\n${error.stderr ?? ""}`.toLowerCase();
-    if (combined.includes("already exists") || combined.includes("duplicate")) {
-      return new AgentError("SITE_ALREADY_EXISTS", "Site already exists", {
-        retryable: false,
-        details: error.details,
-        stdout: error.stdout,
-        stderr: error.stderr,
-        exitCode: error.exitCode,
-        statusCode: 200,
-      });
-    }
-    return error;
   }
 }

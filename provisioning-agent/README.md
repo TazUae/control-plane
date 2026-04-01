@@ -34,3 +34,10 @@ Internal-only provisioning service for ERP host actions.
 - This service is designed for internal network deployment only.
 - No generic command execution endpoint is provided.
 - Response envelopes are contract-aligned for Control Plane integration.
+- ERP execution is allowlisted per action and uses `spawn` with argv only.
+- Configure ERP runtime with:
+  - `ERP_CONTAINER_NAME`
+  - `ERP_BENCH_PATH`
+  - `ERP_BASE_DOMAIN`
+  - `ERP_API_USERNAME_PREFIX`
+  - `ERP_COMMAND_TIMEOUT_MS`

@@ -1,15 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ProvisioningService } from "./provisioning-service.js";
-import { AgentError } from "../lib/errors.js";
 
-test("maps SITE_ALREADY_EXISTS to idempotent success result", async () => {
+test("passes executor success result through service layer", async () => {
   const service = new ProvisioningService({
-    run: async () => {
-      throw new AgentError("SITE_ALREADY_EXISTS", "Site already exists", {
-        retryable: false,
-      });
-    },
+    run: async () => ({ action: "createSite", site: "acme", outcome: "already_done", alreadyExists: true }),
   } as any);
 
   const result = await service.run("createSite", "acme");
