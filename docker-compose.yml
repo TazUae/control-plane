@@ -63,6 +63,7 @@ services:
       control-plane-redis:
         condition: service_healthy
     networks:
+      - dokploy-network
       - control-plane-internal
 
   control-plane-postgres:
