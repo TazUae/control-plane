@@ -23,6 +23,10 @@ This document describes the shared HTTP contract shapes defined in `src/lib/prov
 - Control Plane worker orchestrates step state and retries, then calls the provisioning interface over HTTP.
 - Direct docker execution inside Control Plane is a temporary legacy fallback and is deprecated.
 
+## ERP-side execution runtime (provisioning-agent)
+
+The HTTP contract is stable regardless of how the agent runs `bench`. **`ERP_EXECUTION_MODE=host_bench`** requires the agent **process** to run where the real Frappe bench directory and `bench` CLI exist (often the ERP host/VM or a container with that tree mounted). The default slim `provisioning-agent` container image does not include bench; **`docker`** mode uses `docker exec` into the ERP container instead. See `provisioning-agent/docs/erp-side-runtime.md`.
+
 ## Response Envelope
 
 Success responses:

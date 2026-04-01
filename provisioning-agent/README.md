@@ -31,6 +31,10 @@ Internal-only provisioning service for ERP host actions.
 
 ## Deployment (Dokploy)
 
+### ERP-side runtime for `host_bench`
+
+**`ERP_EXECUTION_MODE=host_bench`** requires the running process to see a **real** Frappe bench tree and `bench` CLI. The default **`provisioning-agent` image** does not include them. Deploy the agent on the **bench host/VM** (e.g. systemd) or use a Docker setup that **mounts** the host bench into the container — see **`docs/erp-side-runtime.md`**. **`ERP_EXECUTION_MODE=docker`** (default) is for agents that only have Docker and use `docker exec` into the ERP container.
+
 ### Container
 
 - Build context: `provisioning-agent`
@@ -58,7 +62,7 @@ Internal-only provisioning service for ERP host actions.
 
 ### ERP execution backend
 
-- **`ERP_EXECUTION_MODE`**: `docker` (default) or `host_bench`. Use **`host_bench`** when the agent runs next to Frappe bench (same VM); keep **`docker`** when only `docker exec` into the ERP container is available.
+- **`ERP_EXECUTION_MODE`**: `docker` (default) or `host_bench`. Use **`host_bench`** only when the **process** runs in an ERP-side runtime with bench + **`ERP_BENCH_PATH`** (see **`docs/erp-side-runtime.md`**). Keep **`docker`** when the agent container has Docker CLI and reaches ERP via **`docker exec`** (generic Dokploy layout).
 - **`ERP_BENCH_EXECUTABLE`**: bench command for `host_bench` (default `bench`; use an absolute path if needed).
 - **`ERP_CONTAINER_NAME`**: required for **`docker`** mode (ignored for `host_bench`).
 

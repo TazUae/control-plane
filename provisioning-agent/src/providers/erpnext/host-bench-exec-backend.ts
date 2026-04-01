@@ -12,9 +12,10 @@ import type {
 } from "./erp-execution-backend.js";
 
 /**
- * Preferred non-Docker backend when the agent runs on the same host (or VM) as the Frappe bench:
- * runs the same allowlisted `bench` subcommands as `DockerExecBackend`, with `cwd` set to the bench
- * directory. No `docker exec`; still no arbitrary argv — only `buildBenchOperationArgs`.
+ * Non-Docker backend: same allowlisted `bench` subcommands as `DockerExecBackend`, `cwd` = bench dir.
+ * The **process** must run in an ERP-side runtime with a real bench tree (docs/erp-side-runtime.md);
+ * the stock slim Docker image alone is insufficient unless bench is mounted. No `docker exec`;
+ * no arbitrary argv — only `buildBenchOperationArgs`.
  */
 export class HostBenchExecBackend implements ErpExecutionBackend {
   async createSite(input: CreateSiteInput): Promise<ErpBackendExecSuccess> {

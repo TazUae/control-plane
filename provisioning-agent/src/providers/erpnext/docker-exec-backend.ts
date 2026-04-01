@@ -12,9 +12,10 @@ import type {
 } from "./erp-execution-backend.js";
 
 /**
- * Fallback backend when `ERP_EXECUTION_MODE=docker` (default): allowlisted bench operations via
- * `docker exec` into `ERP_CONTAINER_NAME`. Prefer `HostBenchExecBackend` (`ERP_EXECUTION_MODE=host_bench`)
- * when the agent can run `bench` on the host. Do not add generic exec passthrough here.
+ * Default backend when `ERP_EXECUTION_MODE=docker`: allowlisted bench operations via `docker exec`
+ * into `ERP_CONTAINER_NAME`. Fits generic agent containers without bench; long-term non-Docker
+ * execution belongs on an ERP-side runtime (`host_bench`, see docs/erp-side-runtime.md).
+ * Do not add generic exec passthrough here.
  */
 export class DockerExecBackend implements ErpExecutionBackend {
   async createSite(input: CreateSiteInput): Promise<ErpBackendExecSuccess> {

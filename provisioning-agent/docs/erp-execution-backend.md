@@ -4,14 +4,16 @@
 
 Provisioning operations (create site, install ERP, scheduler, domain, API user) are implemented behind a **narrow typed interface** (`ErpExecutionBackend` in `src/providers/erpnext/erp-execution-backend.ts`). HTTP routes, request validation, response envelopes, and error mapping stay unchanged; only the execution layer is pluggable.
 
+**Where `host_bench` must run:** the generic `provisioning-agent` Docker image does not include Frappe or bench. See **`docs/erp-side-runtime.md`** for where to deploy the agent so `HostBenchExecBackend` can see a real **`ERP_BENCH_PATH`** and `bench` binary.
+
 ## Backend selection (`ERP_EXECUTION_MODE`)
 
 Wiring is in `src/providers/erpnext/erp-backend-factory.ts` (`createErpExecutionBackend()`), used at startup from `server.ts`.
 
 | Value | Backend | When to use |
 |--------|---------|-------------|
-| **`host_bench`** (preferred when available) | `HostBenchExecBackend` | Agent runs on the same machine (or VM) as the Frappe bench; `bench` is invoked with `cwd` = `ERP_BENCH_PATH`. No Docker CLI. |
-| **`docker`** (default) | `DockerExecBackend` | Legacy / sidecar layout: agent reaches ERP via `docker exec` into `ERP_CONTAINER_NAME`. |
+| **`host_bench`** (preferred when available) | `HostBenchExecBackend` | **Process** must run on the same machine (or VM) as the real Frappe bench; `bench` is invoked with `cwd` = `ERP_BENCH_PATH`. Not the default slim agent container unless bench is mounted. No Docker CLI. |
+| **`docker`** (default) | `DockerExecBackend` | Agent reaches ERP via `docker exec` into `ERP_CONTAINER_NAME`. Use when the agent image has Docker but not bench (e.g. generic Dokploy). Temporary bridge, not the long-term host for `host_bench`. |
 
 Set in environment:
 
@@ -48,11 +50,11 @@ Bench argv (after the `bench` command) is built only by **`buildBenchOperationAr
 
 ## Migration away from Docker backend
 
-1. Run the provisioning-agent on a host that has Frappe bench installed (or mount the bench tree and use `ERP_BENCH_PATH`).
+1. Place the agent process on an **ERP-side runtime** with bench and **`ERP_BENCH_PATH`** (see **`docs/erp-side-runtime.md`**: systemd on the bench VM, or Docker on that host with explicit bench mounts — not the stock slim image alone).
 2. Ensure `bench` works as `ERP_BENCH_EXECUTABLE` with `cwd` = `ERP_BENCH_PATH` for the process user.
 3. Set **`ERP_EXECUTION_MODE=host_bench`** (and optionally **`ERP_BENCH_EXECUTABLE`**).
 4. Redeploy; HTTP API and Control Plane integration are unchanged.
-5. Remove Docker-only dependencies from deployment when satisfied.
+5. Remove Docker-only dependencies from the old agent host when satisfied.
 
 ## Security rule (non-negotiable)
 

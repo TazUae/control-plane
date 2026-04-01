@@ -15,8 +15,8 @@ const EnvSchema = z.object({
   ERP_API_USERNAME_PREFIX: z.string().min(1).default("cp"),
   ERP_COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(120_000),
   /**
-   * `docker`: `docker exec … bench …` (legacy / sidecar deployments).
-   * `host_bench`: run `ERP_BENCH_EXECUTABLE` with cwd `ERP_BENCH_PATH` (VM or co-located host).
+   * `docker`: `docker exec … bench …` — agent has Docker; ERP runs in another container (default Dokploy-friendly).
+   * `host_bench`: run `ERP_BENCH_EXECUTABLE` with cwd `ERP_BENCH_PATH` — process must run where bench exists (see docs/erp-side-runtime.md).
    */
   ERP_EXECUTION_MODE: z.enum(["docker", "host_bench"]).default("docker"),
 });
