@@ -1,3 +1,7 @@
+/**
+ * Docker-only argv construction for `DockerExecBackend` (`docker exec … bench …`).
+ * Not exposed to HTTP; callers use the typed `ErpExecutionBackend` interface instead.
+ */
 import { env } from "../../config/env.js";
 import { validateDomain, validateSite, validateUsername } from "./validation.js";
 

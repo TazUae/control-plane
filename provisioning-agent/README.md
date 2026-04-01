@@ -6,7 +6,7 @@ Internal-only provisioning service for ERP host actions.
 
 - Exposes a narrow HTTP API for approved provisioning actions.
 - Uses token auth (`Authorization: Bearer <PROVISIONING_API_TOKEN>`).
-- Executes only allowlisted ERP commands with `spawn(command, argv)` (no shell interpolation, no `bash -c`).
+- Executes only allowlisted ERP operations through the typed **`ErpExecutionBackend`** interface (`src/providers/erpnext/erp-execution-backend.ts`). The current default is **`DockerExecBackend`** (temporary): `docker exec` + fixed bench argv via `spawn(..., { shell: false })` — no shell interpolation, no `bash -c`, **no arbitrary command execution** (see `docs/erp-execution-backend.md`).
 
 ## Endpoints
 
@@ -76,9 +76,10 @@ Internal-only provisioning service for ERP host actions.
 ## Notes
 
 - This service is designed for internal network deployment only.
-- No generic command execution endpoint is provided.
+- No generic command execution endpoint is provided; **no arbitrary command execution** — only typed backend methods (`createSite`, `installErp`, etc.), never raw bench or shell passthrough.
 - Response envelopes are contract-aligned for Control Plane integration.
-- ERP execution is allowlisted per action and uses `spawn` with argv only.
+- ERP execution is allowlisted per action; the Docker backend uses `spawn` with argv only.
+- Long-term plan: replace `DockerExecBackend` with a non-Docker `ErpExecutionBackend` implementation without changing HTTP contracts (`docs/erp-execution-backend.md`).
 - Configure ERP runtime with:
   - `ERP_CONTAINER_NAME`
   - `ERP_BENCH_PATH`

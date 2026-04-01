@@ -1,10 +1,10 @@
 import { logger } from "../../lib/logger.js";
 import { AgentError } from "../../lib/errors.js";
-import { execCommand } from "../../lib/exec.js";
 import { ProvisioningOperationResult } from "../../contracts/provisioning.js";
-import { AllowedProvisioningAction, buildBenchArgs } from "./commands.js";
+import { AllowedProvisioningAction } from "./commands.js";
 import { env } from "../../config/env.js";
 import { validateDomain, validateSite, validateUsername } from "./validation.js";
+import type { ErpExecutionBackend } from "./erp-execution-backend.js";
 
 function redactSensitiveText(value: string): string {
   return value
@@ -64,19 +64,16 @@ export function detectIdempotentOutcome(
 }
 
 export class ErpnextExecutor {
+  constructor(private readonly backend: ErpExecutionBackend) {}
+
   async run(action: AllowedProvisioningAction, site: string): Promise<ProvisioningOperationResult> {
     const safeSite = validateSite(site);
     const derivedDomain = validateDomain(`${safeSite}.${env.ERP_BASE_DOMAIN}`);
     const derivedApiUsername = validateUsername(`${env.ERP_API_USERNAME_PREFIX}_${safeSite}`);
-    const args = buildBenchArgs(action, {
-      site: safeSite,
-      domain: derivedDomain,
-      apiUsername: derivedApiUsername,
-    });
     logger.info({ provider: "erpnext", action, site }, "ERP action started");
 
     try {
-      const result = await execCommand("docker", args, { timeoutMs: env.ERP_COMMAND_TIMEOUT_MS });
+      const result = await this.dispatchBackend(action, safeSite, derivedDomain, derivedApiUsername);
       logger.info({ provider: "erpnext", action, site, durationMs: result.durationMs }, "ERP action succeeded");
       return {
         action,
@@ -132,6 +129,26 @@ export class ErpnextExecutor {
         "ERP action failed"
       );
       throw typed;
+    }
+  }
+
+  private async dispatchBackend(
+    action: AllowedProvisioningAction,
+    safeSite: string,
+    derivedDomain: string,
+    derivedApiUsername: string
+  ) {
+    switch (action) {
+      case "createSite":
+        return await this.backend.createSite({ site: safeSite });
+      case "installErp":
+        return await this.backend.installErp({ site: safeSite });
+      case "enableScheduler":
+        return await this.backend.enableScheduler({ site: safeSite });
+      case "addDomain":
+        return await this.backend.addDomain({ site: safeSite, domain: derivedDomain });
+      case "createApiUser":
+        return await this.backend.createApiUser({ site: safeSite, apiUsername: derivedApiUsername });
     }
   }
 }
