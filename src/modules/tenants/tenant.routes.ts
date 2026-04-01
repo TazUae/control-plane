@@ -1,6 +1,5 @@
 import { app } from "../../app.js";
 import { prisma } from "../../lib/prisma.js";
-import { Queue } from "bullmq";
 import {
   idempotencyMiddleware,
   IdempotencyContext,
@@ -9,13 +8,8 @@ import { acquireLock, releaseLock } from "../../jobs/lock.js";
 import crypto from "crypto";
 import { CreateTenantSchema } from "./tenant.schemas.js";
 import { requireInternalApiKey } from "../../middleware/require-internal-api-key.js";
-
-export const tenantQueue = new Queue("tenant-provisioning", {
-  connection: {
-    host: "control-plane-redis",
-    port: 6379,
-  },
-});
+import { provisioningQueue } from "../../lib/queue.js";
+import { logger } from "../../lib/logger.js";
 
 function isPrismaUniqueConstraintError(error: unknown): boolean {
   return (
@@ -30,6 +24,7 @@ app.post(
   "/tenants",
   { preHandler: [requireInternalApiKey, idempotencyMiddleware] },
   async (req, reply) => {
+    const correlationId = req.id;
     const parsed = CreateTenantSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       return reply.code(422).send({
@@ -122,11 +117,12 @@ app.post(
         throw new Error("Provisioning jobId missing before enqueue");
       }
 
-      console.log("enqueue payload", result.jobId, result.tenantId);
+      logger.info(
+        { correlationId, provisioningJobId: result.jobId, tenantId: result.tenantId },
+        "Provisioning queue enqueue started"
+      );
 
-      console.log("ENQUEUE START", { jobId: result.jobId, queue: "tenant-provisioning" });
-
-      const queueJob = await tenantQueue.add("provision", {
+      const queueJob = await provisioningQueue.add("provision", {
         jobId: result.jobId,
         tenantId: result.tenantId,
         slug,
@@ -134,10 +130,15 @@ app.post(
         region,
       });
 
-      console.log("ENQUEUE SUCCESS", {
-        jobId: result.jobId,
-        queueJobId: queueJob.id,
-      });
+      logger.info(
+        {
+          correlationId,
+          provisioningJobId: result.jobId,
+          tenantId: result.tenantId,
+          queueJobId: queueJob.id,
+        },
+        "Provisioning queue enqueue succeeded"
+      );
 
       if (idem) {
         await prisma.idempotencyKey.update({

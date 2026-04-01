@@ -12,11 +12,14 @@ const worker = new Worker(
       {
         queue: TENANT_PROVISIONING_QUEUE,
         queueJobId: job.id,
-        payload: job.data,
+        provisioningJobId: job.data?.jobId,
+        tenantId: job.data?.tenantId,
       },
       "Worker received job"
     );
-    await runProvisioning(job.data.jobId);
+    await runProvisioning(job.data.jobId, {
+      queueJobId: job.id?.toString(),
+    });
   },
   { connection: redis }
 );

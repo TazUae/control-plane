@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "worker": "tsx scripts/worker.ts",
+    "test": "tsx --test src/**/*.test.ts",
     "build": "tsc",
     "start:api": "node dist/src/server.js",
     "start": "node dist/src/server.js",

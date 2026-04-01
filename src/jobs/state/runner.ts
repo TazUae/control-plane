@@ -1,20 +1,46 @@
 import { prisma } from "../../lib/prisma.js";
 import { steps } from "./steps.js";
 import { logger } from "../../lib/logger.js";
-import { createSite } from "../../lib/erp/erpnext.js";
+import { getProvisioningAdapter } from "../../lib/provisioning/index.js";
+import { isProvisioningError, ProvisioningError } from "../../lib/provisioning/errors.js";
+import { assertValidSlugOrSite } from "../../lib/validation.js";
+import { shouldRetryProvisioningError } from "./retry-policy.js";
 
 const MAX_RETRIES = 3;
 
-export async function runProvisioning(jobId: string) {
+type RunProvisioningOptions = {
+  queueJobId?: string;
+};
+
+function mapUnexpectedError(error: unknown): ProvisioningError {
+  if (isProvisioningError(error)) {
+    return error;
+  }
+  return new ProvisioningError("ERP_PARTIAL_SUCCESS", "Unexpected provisioning failure", {
+    details: error instanceof Error ? error.message : String(error),
+    cause: error,
+    retryable: false,
+  });
+}
+
+export async function runProvisioning(jobId: string, options: RunProvisioningOptions = {}) {
   const job = await prisma.provisioningJob.findUnique({
     where: { id: jobId },
     include: { tenant: true },
   });
 
   if (!job) throw new Error("Job not found");
+  assertValidSlugOrSite(job.tenant.slug, "tenant.slug");
+  const siteName = job.tenant.slug;
+  const adapter = getProvisioningAdapter();
+  const baseLog = {
+    provisioningJobId: jobId,
+    tenantId: job.tenant.id,
+    queueJobId: options.queueJobId,
+  };
 
   try {
-    logger.info({ jobId, tenantId: job.tenant.id, slug: job.tenant.slug }, "Job started");
+    logger.info({ ...baseLog, slug: job.tenant.slug }, "Provisioning job started");
 
     await prisma.provisioningJob.update({
       where: { id: jobId },
@@ -40,9 +66,10 @@ export async function runProvisioning(jobId: string) {
         attempt++;
 
         const stepStart = Date.now();
+        const stepLog = { ...baseLog, step, attempt };
 
         try {
-          logger.info({ jobId, step, attempt }, "Running step");
+          logger.info(stepLog, "Provisioning step started");
 
           await prisma.provisioningStepRun.create({
             data: {
@@ -52,10 +79,8 @@ export async function runProvisioning(jobId: string) {
             },
           });
 
-          // 🔥 REAL ERP INTEGRATION (ONLY STEP 1)
           if (step === "site_created") {
-            const siteName = `${job.tenant.slug}.local`;
-            await createSite(siteName);
+            const result = await adapter.createSite(siteName);
 
             await prisma.tenant.update({
               where: { id: job.tenant.id },
@@ -63,9 +88,21 @@ export async function runProvisioning(jobId: string) {
                 erpSite: siteName,
               },
             });
+            logger.info({ ...stepLog, adapterAction: result.action }, "Provisioning adapter action completed");
+          } else if (step === "erp_installed") {
+            await adapter.installErp(siteName);
+          } else if (step === "scheduler_enabled") {
+            await adapter.enableScheduler(siteName);
+          } else if (step === "domain_registered") {
+            await adapter.addDomain(siteName);
+          } else if (step === "api_keys_generated") {
+            await adapter.createApiUser(siteName);
+          } else if (step === "warmup_completed") {
+            await adapter.healthCheck(siteName);
           } else {
-            // keep other steps simulated for now
-            await new Promise((r) => setTimeout(r, 500));
+            throw new ProvisioningError("ERP_VALIDATION_FAILED", `Unknown provisioning step: ${step}`, {
+              retryable: false,
+            });
           }
 
           await prisma.provisioningStepRun.updateMany({
@@ -78,15 +115,35 @@ export async function runProvisioning(jobId: string) {
 
           const duration = Date.now() - stepStart;
 
-          logger.info({ jobId, step, duration }, "Step completed");
+          logger.info({ ...stepLog, duration }, "Provisioning step succeeded");
 
           success = true;
 
-        } catch (err) {
-          logger.error({ jobId, step, attempt, err }, "Step failed");
+        } catch (error) {
+          const typedError = mapUnexpectedError(error);
+          logger.error(
+            {
+              ...stepLog,
+              errorCode: typedError.code,
+              retryable: typedError.retryable,
+              errorMessage: typedError.message,
+              stderr: typedError.stderr,
+              stdout: typedError.stdout,
+            },
+            "Provisioning step failed"
+          );
 
-          if (attempt >= MAX_RETRIES) {
-            throw new Error(`Step failed permanently: ${step}`);
+          await prisma.provisioningStepRun.updateMany({
+            where: { jobId, step, status: "running" },
+            data: {
+              status: "failed",
+              finishedAt: new Date(),
+              error: `${typedError.code}: ${typedError.message}`,
+            },
+          });
+
+          if (!shouldRetryProvisioningError(typedError) || attempt >= MAX_RETRIES) {
+            throw typedError;
           }
 
           await new Promise((r) => setTimeout(r, 1000 * attempt));
@@ -99,7 +156,7 @@ export async function runProvisioning(jobId: string) {
       });
     }
 
-    logger.info({ jobId, tenantId: job.tenant.id }, "Job completed");
+    logger.info(baseLog, "Provisioning job completed");
 
     await prisma.provisioningJob.update({
       where: { id: jobId },
@@ -110,17 +167,28 @@ export async function runProvisioning(jobId: string) {
     });
 
   } catch (error) {
-    logger.error({ jobId, tenantId: job.tenant.id, error }, "Job failed");
+    const typedError = mapUnexpectedError(error);
+    logger.error(
+      {
+        ...baseLog,
+        errorCode: typedError.code,
+        retryable: typedError.retryable,
+        errorMessage: typedError.message,
+        stderr: typedError.stderr,
+        stdout: typedError.stdout,
+      },
+      "Provisioning job failed"
+    );
 
     await prisma.provisioningJob.update({
       where: { id: jobId },
       data: {
         status: "failed",
-        failureReason: String(error),
+        failureReason: `${typedError.code}: ${typedError.message}`,
       },
     });
 
-    throw error;
+    throw typedError;
 
   }
 }
