@@ -1,6 +1,6 @@
 import { execCommand } from "../../lib/exec.js";
 import { env } from "../../config/env.js";
-import { buildDockerExecBenchArgv } from "./commands.js";
+import { buildBenchOperationArgs } from "./commands.js";
 import type {
   AddDomainInput,
   CreateApiUserInput,
@@ -12,11 +12,11 @@ import type {
 } from "./erp-execution-backend.js";
 
 /**
- * Fallback backend when `ERP_EXECUTION_MODE=docker` (default): allowlisted bench operations via
- * `docker exec` into `ERP_CONTAINER_NAME`. Prefer `HostBenchExecBackend` (`ERP_EXECUTION_MODE=host_bench`)
- * when the agent can run `bench` on the host. Do not add generic exec passthrough here.
+ * Preferred non-Docker backend when the agent runs on the same host (or VM) as the Frappe bench:
+ * runs the same allowlisted `bench` subcommands as `DockerExecBackend`, with `cwd` set to the bench
+ * directory. No `docker exec`; still no arbitrary argv — only `buildBenchOperationArgs`.
  */
-export class DockerExecBackend implements ErpExecutionBackend {
+export class HostBenchExecBackend implements ErpExecutionBackend {
   async createSite(input: CreateSiteInput): Promise<ErpBackendExecSuccess> {
     return await this.runBench("createSite", { site: input.site });
   }
@@ -44,11 +44,14 @@ export class DockerExecBackend implements ErpExecutionBackend {
   }
 
   private async runBench(
-    action: Parameters<typeof buildDockerExecBenchArgv>[0],
-    buildInput: Parameters<typeof buildDockerExecBenchArgv>[1]
+    action: Parameters<typeof buildBenchOperationArgs>[0],
+    buildInput: Parameters<typeof buildBenchOperationArgs>[1]
   ): Promise<ErpBackendExecSuccess> {
-    const args = buildDockerExecBenchArgv(action, buildInput);
-    const result = await execCommand("docker", args, { timeoutMs: env.ERP_COMMAND_TIMEOUT_MS });
+    const args = buildBenchOperationArgs(action, buildInput);
+    const result = await execCommand(env.ERP_BENCH_EXECUTABLE, args, {
+      cwd: env.ERP_BENCH_PATH,
+      timeoutMs: env.ERP_COMMAND_TIMEOUT_MS,
+    });
     return {
       stdout: result.stdout,
       stderr: result.stderr,

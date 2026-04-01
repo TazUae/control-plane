@@ -6,7 +6,7 @@ Internal-only provisioning service for ERP host actions.
 
 - Exposes a narrow HTTP API for approved provisioning actions.
 - Uses token auth (`Authorization: Bearer <PROVISIONING_API_TOKEN>`).
-- Executes only allowlisted ERP operations through the typed **`ErpExecutionBackend`** interface (`src/providers/erpnext/erp-execution-backend.ts`). The current default is **`DockerExecBackend`** (temporary): `docker exec` + fixed bench argv via `spawn(..., { shell: false })` — no shell interpolation, no `bash -c`, **no arbitrary command execution** (see `docs/erp-execution-backend.md`).
+- Executes only allowlisted ERP operations through the typed **`ErpExecutionBackend`** interface (`src/providers/erpnext/erp-execution-backend.ts`). Backend is selected with **`ERP_EXECUTION_MODE`**: **`host_bench`** runs `bench` on the host (`HostBenchExecBackend`, preferred when the agent shares the bench VM); **`docker`** (default) uses `docker exec` (`DockerExecBackend`). Same allowlist for both; `spawn(..., { shell: false })` only — no arbitrary command execution (see `docs/erp-execution-backend.md`).
 
 ## Endpoints
 
@@ -50,12 +50,17 @@ Internal-only provisioning service for ERP host actions.
 - `NODE_ENV=production`
 - `PORT=8080`
 - `PROVISIONING_API_TOKEN=<long-random-internal-token>`
-- `ERP_CONTAINER_NAME=<erp-backend-container-name>`
 - `ERP_ADMIN_PASSWORD=<erp-admin-password>`
 - `ERP_BENCH_PATH=/home/frappe/frappe-bench`
 - `ERP_BASE_DOMAIN=<internal-base-domain>`
 - `ERP_API_USERNAME_PREFIX=cp`
 - `ERP_COMMAND_TIMEOUT_MS=120000`
+
+### ERP execution backend
+
+- **`ERP_EXECUTION_MODE`**: `docker` (default) or `host_bench`. Use **`host_bench`** when the agent runs next to Frappe bench (same VM); keep **`docker`** when only `docker exec` into the ERP container is available.
+- **`ERP_BENCH_EXECUTABLE`**: bench command for `host_bench` (default `bench`; use an absolute path if needed).
+- **`ERP_CONTAINER_NAME`**: required for **`docker`** mode (ignored for `host_bench`).
 
 ### Networking Assumptions
 
@@ -78,11 +83,5 @@ Internal-only provisioning service for ERP host actions.
 - This service is designed for internal network deployment only.
 - No generic command execution endpoint is provided; **no arbitrary command execution** — only typed backend methods (`createSite`, `installErp`, etc.), never raw bench or shell passthrough.
 - Response envelopes are contract-aligned for Control Plane integration.
-- ERP execution is allowlisted per action; the Docker backend uses `spawn` with argv only.
-- Long-term plan: replace `DockerExecBackend` with a non-Docker `ErpExecutionBackend` implementation without changing HTTP contracts (`docs/erp-execution-backend.md`).
-- Configure ERP runtime with:
-  - `ERP_CONTAINER_NAME`
-  - `ERP_BENCH_PATH`
-  - `ERP_BASE_DOMAIN`
-  - `ERP_API_USERNAME_PREFIX`
-  - `ERP_COMMAND_TIMEOUT_MS`
+- ERP execution is allowlisted per action; both backends use `spawn` with argv only (no shell).
+- Configure ERP runtime with `ERP_EXECUTION_MODE`, `ERP_BENCH_PATH`, `ERP_BASE_DOMAIN`, `ERP_API_USERNAME_PREFIX`, `ERP_COMMAND_TIMEOUT_MS`, and either `ERP_CONTAINER_NAME` (docker) or `ERP_BENCH_EXECUTABLE` (host_bench). See `docs/erp-execution-backend.md`.

@@ -1,6 +1,7 @@
 /**
- * Docker-only argv construction for `DockerExecBackend` (`docker exec … bench …`).
- * Not exposed to HTTP; callers use the typed `ErpExecutionBackend` interface instead.
+ * Allowlisted argv for Frappe bench operations.
+ * - `buildBenchOperationArgs`: argv after `bench` (shared by Docker and host backends).
+ * - `buildDockerExecBenchArgv`: full `docker exec … bench …` argv for `DockerExecBackend` only.
  */
 import { env } from "../../config/env.js";
 import { validateDomain, validateSite, validateUsername } from "./validation.js";
@@ -18,17 +19,21 @@ type BuildActionInput = {
   apiUsername?: string;
 };
 
-function buildDockerExecPrefix(): string[] {
+/** `docker exec -w <bench> <container> bench` — not used by host bench backend. */
+function buildDockerExecBenchPrefix(): string[] {
   return ["exec", "-w", env.ERP_BENCH_PATH, env.ERP_CONTAINER_NAME, "bench"];
 }
 
-export function buildBenchArgs(action: AllowedProvisioningAction, input: BuildActionInput): string[] {
+/**
+ * Arguments passed to `bench` for each allowlisted action (no docker, no shell).
+ * Used by `HostBenchExecBackend` and composed into full docker argv for `DockerExecBackend`.
+ */
+export function buildBenchOperationArgs(action: AllowedProvisioningAction, input: BuildActionInput): string[] {
   const site = validateSite(input.site);
 
   switch (action) {
     case "createSite":
       return [
-        ...buildDockerExecPrefix(),
         "new-site",
         site,
         "--admin-password",
@@ -38,7 +43,6 @@ export function buildBenchArgs(action: AllowedProvisioningAction, input: BuildAc
       ];
     case "installErp":
       return [
-        ...buildDockerExecPrefix(),
         "--site",
         site,
         "install-app",
@@ -46,7 +50,6 @@ export function buildBenchArgs(action: AllowedProvisioningAction, input: BuildAc
       ];
     case "enableScheduler":
       return [
-        ...buildDockerExecPrefix(),
         "--site",
         site,
         "enable-scheduler",
@@ -57,7 +60,6 @@ export function buildBenchArgs(action: AllowedProvisioningAction, input: BuildAc
       }
       const domain = validateDomain(input.domain);
       return [
-        ...buildDockerExecPrefix(),
         "--site",
         site,
         "execute",
@@ -71,7 +73,6 @@ export function buildBenchArgs(action: AllowedProvisioningAction, input: BuildAc
       }
       const apiUsername = validateUsername(input.apiUsername);
       return [
-        ...buildDockerExecPrefix(),
         "--site",
         site,
         "execute",
@@ -80,4 +81,14 @@ export function buildBenchArgs(action: AllowedProvisioningAction, input: BuildAc
         `["${site}","${apiUsername}"]`,
       ];
   }
+}
+
+/** Full argv for `spawn("docker", argv, …)` — Docker backend only. */
+export function buildDockerExecBenchArgv(action: AllowedProvisioningAction, input: BuildActionInput): string[] {
+  return [...buildDockerExecBenchPrefix(), ...buildBenchOperationArgs(action, input)];
+}
+
+/** Alias for `buildDockerExecBenchArgv` (tests and Docker backend). */
+export function buildBenchArgs(action: AllowedProvisioningAction, input: BuildActionInput): string[] {
+  return buildDockerExecBenchArgv(action, input);
 }

@@ -36,3 +36,28 @@ test("buildBenchArgs for createApiUser requires username", async () => {
   assert.match(joined, /frappe\.api\.provisioning\.create_api_user/);
   assert.match(joined, /\["acme","cp_acme"\]/);
 });
+
+test("buildBenchOperationArgs matches docker argv after bench for all actions", async () => {
+  process.env.PROVISIONING_API_TOKEN ??= "test-provisioning-token";
+  process.env.ERP_ADMIN_PASSWORD ??= "test-admin-password";
+  const { buildBenchOperationArgs, buildDockerExecBenchArgv } = await import("./commands.js");
+
+  const cases: Array<{
+    action: Parameters<typeof buildBenchOperationArgs>[0];
+    input: Parameters<typeof buildBenchOperationArgs>[1];
+  }> = [
+    { action: "createSite", input: { site: "acme" } },
+    { action: "installErp", input: { site: "acme" } },
+    { action: "enableScheduler", input: { site: "acme" } },
+    { action: "addDomain", input: { site: "acme", domain: "acme.erp.local" } },
+    { action: "createApiUser", input: { site: "acme", apiUsername: "cp_acme" } },
+  ];
+
+  for (const { action, input } of cases) {
+    const op = buildBenchOperationArgs(action, input);
+    const full = buildDockerExecBenchArgv(action, input);
+    const benchIdx = full.indexOf("bench");
+    assert.ok(benchIdx >= 0);
+    assert.deepEqual(full.slice(benchIdx + 1), op);
+  }
+});

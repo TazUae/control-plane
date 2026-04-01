@@ -4,7 +4,7 @@ import { env } from "./config/env.js";
 import { logger, loggerConfig } from "./lib/logger.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSiteRoutes } from "./routes/sites.js";
-import { DockerExecBackend } from "./providers/erpnext/docker-exec-backend.js";
+import { createErpExecutionBackend } from "./providers/erpnext/erp-backend-factory.js";
 import { ProvisioningService } from "./services/provisioning-service.js";
 import { mapUnknownToAgentError, sendFailure } from "./lib/errors.js";
 
@@ -14,7 +14,12 @@ const app = Fastify({
   genReqId: (req) => (req.headers["x-request-id"] as string | undefined) ?? crypto.randomUUID(),
 });
 
-const service = new ProvisioningService(new DockerExecBackend());
+const erpBackend = createErpExecutionBackend();
+logger.info(
+  { erpExecutionMode: env.ERP_EXECUTION_MODE, backend: erpBackend.constructor.name },
+  "ERP execution backend selected"
+);
+const service = new ProvisioningService(erpBackend);
 
 app.setErrorHandler((error, _req, reply) => {
   const typed = mapUnknownToAgentError(error);
