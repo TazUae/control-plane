@@ -4,7 +4,7 @@
 
 Provisioning operations (create site, install ERP, scheduler, domain, API user) are implemented behind a **narrow typed interface** (`ErpExecutionBackend` in `src/providers/erpnext/erp-execution-backend.ts`). HTTP routes, request validation, response envelopes, and error mapping stay unchanged; only the execution layer is pluggable.
 
-**Where `host_bench` must run:** the generic `provisioning-agent` Docker image does not include Frappe or bench. See **`docs/erp-side-runtime.md`** for where to deploy the agent so `HostBenchExecBackend` can see a real **`ERP_BENCH_PATH`** and `bench` binary.
+**Where `host_bench` must run:** the generic `provisioning-agent` Docker image does not include Frappe or bench. See **`docs/erp-side-runtime.md`** for rationale; **`docs/erp-side-runbook.md`** for deployment, health checks, and rollback.
 
 ## Backend selection (`ERP_EXECUTION_MODE`)
 
@@ -13,7 +13,7 @@ Wiring is in `src/providers/erpnext/erp-backend-factory.ts` (`createErpExecution
 | Value | Backend | When to use |
 |--------|---------|-------------|
 | **`host_bench`** (preferred when available) | `HostBenchExecBackend` | **Process** must run on the same machine (or VM) as the real Frappe bench; `bench` is invoked with `cwd` = `ERP_BENCH_PATH`. Not the default slim agent container unless bench is mounted. No Docker CLI. |
-| **`docker`** (default) | `DockerExecBackend` | Agent reaches ERP via `docker exec` into `ERP_CONTAINER_NAME`. Use when the agent image has Docker but not bench (e.g. generic Dokploy). Temporary bridge, not the long-term host for `host_bench`. |
+| **`docker`** (default) | `DockerExecBackend` | Agent reaches ERP via `docker exec` into `ERP_CONTAINER_NAME`. **Temporary compatibility only** when the agent has Docker CLI but not bench (e.g. generic Dokploy). Long-term Option 2: **`host_bench`** on ERP-side runtime (`docs/erp-side-runbook.md`). |
 
 Set in environment:
 
@@ -38,11 +38,11 @@ Runs the same allowlisted bench subcommands as Docker mode, using **`buildBenchO
 
 Configure **`ERP_BENCH_EXECUTABLE`** if `bench` is not on `PATH` (for example an absolute path to the bench script).
 
-## Fallback: `DockerExecBackend`
+## Fallback: `DockerExecBackend` (temporary compatibility)
 
 **Location:** `src/providers/erpnext/docker-exec-backend.ts`
 
-Runs allowlisted operations via **`docker exec -w <ERP_BENCH_PATH> <ERP_CONTAINER_NAME> bench …`**. Use this when the provisioning-agent container only has Docker socket access to the ERP container and cannot run `bench` locally.
+Runs allowlisted operations via **`docker exec -w <ERP_BENCH_PATH> <ERP_CONTAINER_NAME> bench …`**. Use this when the agent only has Docker access to the ERP container and **cannot** run `bench` locally. Prefer **`host_bench`** on an ERP-side process once bench co-location is available (`docs/erp-side-runbook.md`).
 
 ## Shared allowlist
 

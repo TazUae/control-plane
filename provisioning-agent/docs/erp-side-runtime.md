@@ -1,5 +1,7 @@
 # ERP-side runtime for non-Docker execution (Option 2)
 
+**Operator steps (systemd, health, rollback):** **`docs/erp-side-runbook.md`**. **Templates:** `deploy/erp-side/systemd/`.
+
 ## Problem: why `host_bench` fails in a generic Dokploy app container
 
 The HTTP API and `ErpExecutionBackend` contract are unchanged. What *does* change with **`ERP_EXECUTION_MODE=host_bench`** is **where the Node process must run**.
@@ -70,8 +72,8 @@ A bare name such as `bench` is not preflight-checked (depends on `PATH` at runti
 4. **Smoke-test** `GET /health` and one provisioning flow from Control Plane.
 5. **Decommission** reliance on **`DockerExecBackend`** on the old agent host if you no longer need **`ERP_EXECUTION_MODE=docker`** there.
 
-## `DockerExecBackend` role
+## `DockerExecBackend` role (temporary compatibility only)
 
-**`DockerExecBackend`** (`ERP_EXECUTION_MODE=docker`, default) is the **compatibility bridge** when the agent runs in a container that has Docker but **not** bench. It is appropriate for **generic** Dokploy deployments that can reach the ERP container via **`docker exec`**.
+**`DockerExecBackend`** (`ERP_EXECUTION_MODE=docker`, default) is a **temporary compatibility** mode: the agent has the Docker CLI and reaches bench **inside** the ERP container via **`docker exec`**. Use it for **generic** Dokploy stacks where the agent image does **not** co-locate with the bench tree.
 
-For deployments where **`docker exec` is unavailable or undesirable** long term, **`host_bench`** on the **ERP-side runtime** above is the clean path — same HTTP contract, different process placement.
+It is **not** the long-term target for Option 2 when you can run **`host_bench`** on an ERP-side runtime (**`docs/erp-side-runbook.md`**). Same HTTP contract; migrate by relocating the process and setting **`ERP_EXECUTION_MODE=host_bench`**, then pointing Control Plane at the new reachable URL if needed.

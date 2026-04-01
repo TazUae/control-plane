@@ -1,0 +1,26 @@
+# Copy to /etc/systemd/system/provisioning-agent.service (remove .example)
+# Adjust User, Group, WorkingDirectory, ExecStart (node path), EnvironmentFile paths.
+#
+# Docs: provisioning-agent/docs/erp-side-runbook.md
+
+[Unit]
+Description=provisioning-agent (Control Plane ERP provisioning HTTP)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=provisioning-agent
+Group=provisioning-agent
+WorkingDirectory=/opt/provisioning-agent
+EnvironmentFile=/etc/provisioning-agent/environment
+ExecStart=/usr/bin/node dist/server.js
+Restart=on-failure
+RestartSec=5
+
+# Optional hardening — validate on your distro before use:
+# NoNewPrivileges=true
+# PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

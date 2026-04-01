@@ -33,7 +33,9 @@ Internal-only provisioning service for ERP host actions.
 
 ### ERP-side runtime for `host_bench`
 
-**`ERP_EXECUTION_MODE=host_bench`** requires the running process to see a **real** Frappe bench tree and `bench` CLI. The default **`provisioning-agent` image** does not include them. Deploy the agent on the **bench host/VM** (e.g. systemd) or use a Docker setup that **mounts** the host bench into the container — see **`docs/erp-side-runtime.md`**. **`ERP_EXECUTION_MODE=docker`** (default) is for agents that only have Docker and use `docker exec` into the ERP container.
+**`ERP_EXECUTION_MODE=host_bench`** requires the running process to see a **real** Frappe bench tree and `bench` CLI. The default **`provisioning-agent` image** does not include them. **Operational procedure:** **`docs/erp-side-runbook.md`** (deployment, startup, health, rollback). **systemd templates:** **`deploy/erp-side/systemd/`**. **Rationale:** **`docs/erp-side-runtime.md`**.
+
+**`ERP_EXECUTION_MODE=docker`** (default) is **temporary compatibility**: agent uses `docker exec` into the ERP container when it does not co-locate with bench (typical Dokploy).
 
 ### Container
 
@@ -88,4 +90,4 @@ Internal-only provisioning service for ERP host actions.
 - No generic command execution endpoint is provided; **no arbitrary command execution** — only typed backend methods (`createSite`, `installErp`, etc.), never raw bench or shell passthrough.
 - Response envelopes are contract-aligned for Control Plane integration.
 - ERP execution is allowlisted per action; both backends use `spawn` with argv only (no shell).
-- Configure ERP runtime with `ERP_EXECUTION_MODE`, `ERP_BENCH_PATH`, `ERP_BASE_DOMAIN`, `ERP_API_USERNAME_PREFIX`, `ERP_COMMAND_TIMEOUT_MS`, and either `ERP_CONTAINER_NAME` (docker) or `ERP_BENCH_EXECUTABLE` (host_bench). See `docs/erp-execution-backend.md`.
+- Configure ERP runtime with `ERP_EXECUTION_MODE`, `ERP_BENCH_PATH`, `ERP_BASE_DOMAIN`, `ERP_API_USERNAME_PREFIX`, `ERP_COMMAND_TIMEOUT_MS`, and either `ERP_CONTAINER_NAME` (docker) or `ERP_BENCH_EXECUTABLE` (host_bench). See `docs/erp-execution-backend.md`. For ERP-side `host_bench` deployment, see `docs/erp-side-runbook.md`.

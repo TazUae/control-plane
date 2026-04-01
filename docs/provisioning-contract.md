@@ -25,7 +25,7 @@ This document describes the shared HTTP contract shapes defined in `src/lib/prov
 
 ## ERP-side execution runtime (provisioning-agent)
 
-The HTTP contract is stable regardless of how the agent runs `bench`. **`ERP_EXECUTION_MODE=host_bench`** requires the agent **process** to run where the real Frappe bench directory and `bench` CLI exist (often the ERP host/VM or a container with that tree mounted). The default slim `provisioning-agent` container image does not include bench; **`docker`** mode uses `docker exec` into the ERP container instead. See `provisioning-agent/docs/erp-side-runtime.md`.
+The HTTP contract is stable regardless of how the agent runs `bench`. **`ERP_EXECUTION_MODE=host_bench`** requires the agent **process** to run where the real Frappe bench directory and `bench` CLI exist (often the ERP host/VM or a container with that tree mounted). The default slim `provisioning-agent` container image does not include bench; **`docker`** mode is **temporary compatibility** and uses `docker exec` into the ERP container. See `provisioning-agent/docs/erp-side-runtime.md` and the operator runbook `provisioning-agent/docs/erp-side-runbook.md`.
 
 ## Response Envelope
 
