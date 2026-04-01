@@ -4,6 +4,7 @@ import { assertValidSlugOrSite } from "../validation.js";
 import {
   FailureEnvelopeSchema,
   HealthResponseDataSchema,
+  ProvisioningFailure,
   SiteOperationResponseDataSchema,
   SuccessEnvelopeSchema,
 } from "./contract.js";
@@ -25,6 +26,7 @@ const SiteOperationSuccessEnvelopeSchema = SuccessEnvelopeSchema(SiteOperationRe
 const HealthSuccessEnvelopeSchema = SuccessEnvelopeSchema(HealthResponseDataSchema);
 
 export class HttpProvisioningAdapter implements ProvisioningAdapter {
+  public readonly kind = "http-provisioning" as const;
   private readonly baseUrl: string;
   private readonly token: string;
   private readonly timeoutMs: number;
@@ -193,15 +195,7 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     }
   }
 
-  private mapFailureEnvelopeToProvisioningError(error: {
-    code: "INFRA_UNAVAILABLE" | "ERP_COMMAND_FAILED" | "ERP_VALIDATION_FAILED" | "ERP_TIMEOUT" | "ERP_PARTIAL_SUCCESS" | "SITE_ALREADY_EXISTS";
-    message: string;
-    retryable: boolean;
-    details?: string;
-    stdout?: string;
-    stderr?: string;
-    exitCode?: number;
-  }): ProvisioningError {
+  private mapFailureEnvelopeToProvisioningError(error: ProvisioningFailure): ProvisioningError {
     return new ProvisioningError(error.code, error.message, {
       retryable: error.retryable,
       details: error.details,

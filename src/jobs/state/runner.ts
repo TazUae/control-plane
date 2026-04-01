@@ -37,6 +37,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
     provisioningJobId: jobId,
     tenantId: job.tenant.id,
     queueJobId: options.queueJobId,
+    adapter: adapter.kind,
   };
 
   try {

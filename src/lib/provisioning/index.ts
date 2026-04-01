@@ -2,6 +2,7 @@ import { DockerBenchProvisioningAdapter } from "./docker-bench-adapter.js";
 import { HttpProvisioningAdapter } from "./http-adapter.js";
 import { env } from "../../config/env.js";
 import { ProvisioningAdapter } from "./interface.js";
+import { logger } from "../logger.js";
 
 let adapter: ProvisioningAdapter | null = null;
 
@@ -10,6 +11,7 @@ export function getProvisioningAdapter(): ProvisioningAdapter {
     adapter = env.PROVISIONING_API_URL
       ? new HttpProvisioningAdapter()
       : new DockerBenchProvisioningAdapter();
+    logger.info({ adapter: adapter.kind }, "Provisioning adapter selected");
   }
   return adapter;
 }

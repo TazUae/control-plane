@@ -5,6 +5,10 @@ export type ProvisioningOperationResult = {
 };
 
 export interface ProvisioningAdapter {
+  /**
+   * Stable adapter identifier used by orchestration logs and diagnostics.
+   */
+  readonly kind: "docker-bench" | "http-provisioning";
   createSite(site: string): Promise<ProvisioningOperationResult>;
   installErp(site: string): Promise<ProvisioningOperationResult>;
   enableScheduler(site: string): Promise<ProvisioningOperationResult>;
