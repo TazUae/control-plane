@@ -12,7 +12,12 @@ export const ProvisioningErrorCodeSchema = z.enum([
 export type ProvisioningErrorCode = z.infer<typeof ProvisioningErrorCodeSchema>;
 
 export const SiteOperationRequestSchema = z.object({
-  site: z.string().trim().min(1).regex(/^[a-z0-9-]+$/, "site must match ^[a-z0-9-]+$"),
+  site: z
+    .string()
+    .trim()
+    .min(3)
+    .max(63)
+    .regex(/^[a-z0-9-]+$/, "site must match ^[a-z0-9-]+$"),
   context: z
     .object({
       requestId: z.string().min(1).optional(),
@@ -31,8 +36,6 @@ export const ProvisioningOperationResultSchema = z.object({
   alreadyExists: z.boolean().optional(),
   alreadyInstalled: z.boolean().optional(),
   alreadyConfigured: z.boolean().optional(),
-  stdout: z.string().optional(),
-  stderr: z.string().optional(),
   durationMs: z.number().int().nonnegative().optional(),
 });
 
@@ -43,9 +46,6 @@ export const ProvisioningFailureSchema = z.object({
   message: z.string().min(1),
   retryable: z.boolean(),
   details: z.string().optional(),
-  stdout: z.string().optional(),
-  stderr: z.string().optional(),
-  exitCode: z.number().int().optional(),
 });
 
 export type ProvisioningFailure = z.infer<typeof ProvisioningFailureSchema>;

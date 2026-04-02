@@ -79,8 +79,6 @@ export class ErpnextExecutor {
         action,
         site: safeSite,
         outcome: "applied",
-        stdout: result.stdout,
-        stderr: result.stderr,
         durationMs: result.durationMs,
       };
     } catch (error) {
@@ -111,8 +109,6 @@ export class ErpnextExecutor {
           alreadyExists: idempotent.alreadyExists,
           alreadyInstalled: idempotent.alreadyInstalled,
           alreadyConfigured: idempotent.alreadyConfigured,
-          stdout: typed.stdout,
-          stderr: typed.stderr,
         };
       }
 

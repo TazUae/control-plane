@@ -61,3 +61,12 @@ test("buildBenchOperationArgs matches docker argv after bench for all actions", 
     assert.deepEqual(full.slice(benchIdx + 1), op);
   }
 });
+
+test("docker argv remains strict argv-based without shell wrappers", async () => {
+  process.env.PROVISIONING_API_TOKEN ??= "test-provisioning-token";
+  process.env.ERP_ADMIN_PASSWORD ??= "test-admin-password";
+  const { buildDockerExecBenchArgv } = await import("./commands.js");
+  const args = buildDockerExecBenchArgv("createSite", { site: "acme" });
+  assert.equal(args.includes("bash"), false);
+  assert.equal(args.includes("-c"), false);
+});

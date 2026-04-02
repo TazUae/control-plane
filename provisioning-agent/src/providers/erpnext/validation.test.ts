@@ -9,6 +9,8 @@ test("validateSite accepts conservative site slug", () => {
 test("validateSite rejects invalid site values", () => {
   assert.throws(() => validateSite("ACME"), /invalid site format/i);
   assert.throws(() => validateSite("acme.example"), /invalid site format/i);
+  assert.throws(() => validateSite("ab"));
+  assert.throws(() => validateSite("a".repeat(64)));
 });
 
 test("validateDomain accepts valid FQDN", () => {

@@ -4,11 +4,12 @@ import type { ErpExecutionBackend } from "../providers/erpnext/erp-execution-bac
 
 function stubBackend(overrides: Partial<ErpExecutionBackend>): ErpExecutionBackend {
   const base: ErpExecutionBackend = {
-    createSite: async () => ({ stdout: "", stderr: "", durationMs: 0 }),
-    installErp: async () => ({ stdout: "", stderr: "", durationMs: 0 }),
-    enableScheduler: async () => ({ stdout: "", stderr: "", durationMs: 0 }),
-    addDomain: async () => ({ stdout: "", stderr: "", durationMs: 0 }),
-    createApiUser: async () => ({ stdout: "", stderr: "", durationMs: 0 }),
+    createSite: async () => ({ durationMs: 0 }),
+    installErp: async () => ({ durationMs: 0 }),
+    enableScheduler: async () => ({ durationMs: 0 }),
+    addDomain: async () => ({ durationMs: 0 }),
+    createApiUser: async () => ({ durationMs: 0 }),
+    healthCheck: async () => ({ durationMs: 0 }),
   };
   return { ...base, ...overrides };
 }
@@ -23,7 +24,7 @@ test("passes backend success through service and executor", async () => {
 
   const service = new ProvisioningService(
     stubBackend({
-      createSite: async () => ({ stdout: "done", stderr: "", durationMs: 12 }),
+      createSite: async () => ({ durationMs: 12 }),
     })
   );
 

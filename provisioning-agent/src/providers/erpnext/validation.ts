@@ -5,11 +5,12 @@ export const DOMAIN_REGEX = /^(?=.{3,253}$)(?!-)(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63
 export const USERNAME_REGEX = /^[a-z][a-z0-9_.-]{2,63}$/;
 
 const SiteSchema = z.string().trim().min(1).regex(SITE_REGEX, "invalid site format");
+const BoundedSiteSchema = SiteSchema.min(3).max(63);
 const DomainSchema = z.string().trim().min(1).toLowerCase().regex(DOMAIN_REGEX, "invalid domain format");
 const UsernameSchema = z.string().trim().min(3).toLowerCase().regex(USERNAME_REGEX, "invalid username format");
 
 export function validateSite(input: string): string {
-  return SiteSchema.parse(input);
+  return BoundedSiteSchema.parse(input);
 }
 
 export function validateDomain(input: string): string {

@@ -8,6 +8,7 @@ import type {
   EnableSchedulerInput,
   ErpBackendExecSuccess,
   ErpExecutionBackend,
+  HealthCheckInput,
   InstallErpInput,
 } from "./erp-execution-backend.js";
 
@@ -44,6 +45,15 @@ export class HostBenchExecBackend implements ErpExecutionBackend {
     });
   }
 
+  async healthCheck(_input: HealthCheckInput): Promise<ErpBackendExecSuccess> {
+    const startedAt = Date.now();
+    await execCommand(env.ERP_BENCH_EXECUTABLE, ["--version"], {
+      cwd: env.ERP_BENCH_PATH,
+      timeoutMs: env.ERP_COMMAND_TIMEOUT_MS,
+    });
+    return { durationMs: Date.now() - startedAt };
+  }
+
   private async runBench(
     action: Parameters<typeof buildBenchOperationArgs>[0],
     buildInput: Parameters<typeof buildBenchOperationArgs>[1]
@@ -53,10 +63,6 @@ export class HostBenchExecBackend implements ErpExecutionBackend {
       cwd: env.ERP_BENCH_PATH,
       timeoutMs: env.ERP_COMMAND_TIMEOUT_MS,
     });
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      durationMs: result.durationMs,
-    };
+    return { durationMs: result.durationMs };
   }
 }

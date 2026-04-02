@@ -41,9 +41,10 @@ export async function execCommand(command: string, args: string[], options: Exec
 
     child.on("error", (error) => {
       clearTimeout(timer);
+      const isEnoent = (error as NodeJS.ErrnoException).code === "ENOENT";
       reject(
         new AgentError("INFRA_UNAVAILABLE", "Provisioning command unavailable", {
-          details: error.message,
+          details: isEnoent ? `Executable not found: ${command}` : error.message,
           stdout: stdout.trim(),
           stderr: stderr.trim(),
           statusCode: 503,

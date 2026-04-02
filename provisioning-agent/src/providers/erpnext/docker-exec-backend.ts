@@ -1,20 +1,22 @@
 import { execCommand } from "../../lib/exec.js";
 import { env } from "../../config/env.js";
 import { buildDockerExecBenchArgv } from "./commands.js";
+import { mapBackendFailure } from "./errors.js";
 import type {
   AddDomainInput,
   CreateApiUserInput,
   CreateSiteInput,
   EnableSchedulerInput,
+  HealthCheckInput,
   ErpBackendExecSuccess,
   ErpExecutionBackend,
   InstallErpInput,
 } from "./erp-execution-backend.js";
 
 /**
- * Temporary compatibility when `ERP_EXECUTION_MODE=docker` (default): allowlisted bench operations
- * via `docker exec` into `ERP_CONTAINER_NAME`. For generic agent containers without bench; long-term
- * Option 2 is `host_bench` on an ERP-side runtime (docs/erp-side-runbook.md, docs/erp-side-runtime.md).
+ * Temporary bridge backend when `ERP_EXECUTION_BACKEND=docker` (default): allowlisted bench operations
+ * via `docker exec` into `ERP_CONTAINER_NAME`.
+ * This is not the final production architecture and must be replaced by ERP-side execution.
  * Do not add generic exec passthrough here.
  */
 export class DockerExecBackend implements ErpExecutionBackend {
@@ -44,16 +46,28 @@ export class DockerExecBackend implements ErpExecutionBackend {
     });
   }
 
+  async healthCheck(_input: HealthCheckInput): Promise<ErpBackendExecSuccess> {
+    const startedAt = Date.now();
+    try {
+      await execCommand("docker", ["version", "--format", "{{.Server.Version}}"], {
+        timeoutMs: env.ERP_COMMAND_TIMEOUT_MS,
+      });
+      return { durationMs: Date.now() - startedAt };
+    } catch (error) {
+      throw mapBackendFailure(error, "ERP execution backend health check failed");
+    }
+  }
+
   private async runBench(
     action: Parameters<typeof buildDockerExecBenchArgv>[0],
     buildInput: Parameters<typeof buildDockerExecBenchArgv>[1]
   ): Promise<ErpBackendExecSuccess> {
-    const args = buildDockerExecBenchArgv(action, buildInput);
-    const result = await execCommand("docker", args, { timeoutMs: env.ERP_COMMAND_TIMEOUT_MS });
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      durationMs: result.durationMs,
-    };
+    try {
+      const args = buildDockerExecBenchArgv(action, buildInput);
+      const result = await execCommand("docker", args, { timeoutMs: env.ERP_COMMAND_TIMEOUT_MS });
+      return { durationMs: result.durationMs };
+    } catch (error) {
+      throw mapBackendFailure(error, "Provisioning command failed");
+    }
   }
 }

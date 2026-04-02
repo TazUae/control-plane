@@ -6,7 +6,11 @@ Internal-only provisioning service for ERP host actions.
 
 - Exposes a narrow HTTP API for approved provisioning actions.
 - Uses token auth (`Authorization: Bearer <PROVISIONING_API_TOKEN>`).
-- Executes only allowlisted ERP operations through the typed **`ErpExecutionBackend`** interface (`src/providers/erpnext/erp-execution-backend.ts`). Backend is selected with **`ERP_EXECUTION_MODE`**: **`host_bench`** runs `bench` on the host (`HostBenchExecBackend`, preferred when the agent shares the bench VM); **`docker`** (default) uses `docker exec` (`DockerExecBackend`). Same allowlist for both; `spawn(..., { shell: false })` only — no arbitrary command execution (see `docs/erp-execution-backend.md`).
+- Executes only allowlisted ERP operations through the typed **`ErpExecutionBackend`** interface (`src/providers/erpnext/erp-execution-backend.ts`).
+- Backend is selected with **`ERP_EXECUTION_BACKEND`**:
+  - **`docker`** (default): `DockerExecBackend` temporary bridge using strict `docker exec` argv.
+  - **`remote`**: `RemoteErpBackend` scaffold that fails safely with not-implemented errors.
+- No arbitrary shell execution, no `bash -c`, no generic bench passthrough, no generic Docker control.
 
 ## Endpoints
 
@@ -31,11 +35,10 @@ Internal-only provisioning service for ERP host actions.
 
 ## Deployment (Dokploy)
 
-### ERP-side runtime for `host_bench`
+### ERP execution backend
 
-**`ERP_EXECUTION_MODE=host_bench`** requires the running process to see a **real** Frappe bench tree and `bench` CLI. The default **`provisioning-agent` image** does not include them. **Operational procedure:** **`docs/erp-side-runbook.md`** (deployment, startup, health, rollback). **systemd templates:** **`deploy/erp-side/systemd/`**. **Rationale:** **`docs/erp-side-runtime.md`**.
-
-**`ERP_EXECUTION_MODE=docker`** (default) is **temporary compatibility**: agent uses `docker exec` into the ERP container when it does not co-locate with bench (typical Dokploy).
+`ERP_EXECUTION_BACKEND=docker` is the default and is intentionally temporary.
+The long-term target is an ERP-side remote execution interface (`docs/erp-side-execution-interface.md`), with this agent calling a narrow typed API instead of Docker.
 
 ### Container
 
@@ -64,9 +67,8 @@ Internal-only provisioning service for ERP host actions.
 
 ### ERP execution backend
 
-- **`ERP_EXECUTION_MODE`**: `docker` (default) or `host_bench`. Use **`host_bench`** only when the **process** runs in an ERP-side runtime with bench + **`ERP_BENCH_PATH`** (see **`docs/erp-side-runtime.md`**). Keep **`docker`** when the agent container has Docker CLI and reaches ERP via **`docker exec`** (generic Dokploy layout).
-- **`ERP_BENCH_EXECUTABLE`**: bench command for `host_bench` (default `bench`; use an absolute path if needed).
-- **`ERP_CONTAINER_NAME`**: required for **`docker`** mode (ignored for `host_bench`).
+- **`ERP_EXECUTION_BACKEND`**: `docker` (default) or `remote`.
+- **`ERP_CONTAINER_NAME`**: required for `docker` backend.
 
 ### Networking Assumptions
 
@@ -90,4 +92,4 @@ Internal-only provisioning service for ERP host actions.
 - No generic command execution endpoint is provided; **no arbitrary command execution** — only typed backend methods (`createSite`, `installErp`, etc.), never raw bench or shell passthrough.
 - Response envelopes are contract-aligned for Control Plane integration.
 - ERP execution is allowlisted per action; both backends use `spawn` with argv only (no shell).
-- Configure ERP runtime with `ERP_EXECUTION_MODE`, `ERP_BENCH_PATH`, `ERP_BASE_DOMAIN`, `ERP_API_USERNAME_PREFIX`, `ERP_COMMAND_TIMEOUT_MS`, and either `ERP_CONTAINER_NAME` (docker) or `ERP_BENCH_EXECUTABLE` (host_bench). See `docs/erp-execution-backend.md`. For ERP-side `host_bench` deployment, see `docs/erp-side-runbook.md`.
+- Configure ERP runtime with `ERP_EXECUTION_BACKEND`, `ERP_BENCH_PATH`, `ERP_BASE_DOMAIN`, `ERP_API_USERNAME_PREFIX`, `ERP_COMMAND_TIMEOUT_MS`, and `ERP_CONTAINER_NAME` (docker backend). See `docs/erp-execution-backend.md`.

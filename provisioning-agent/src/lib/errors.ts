@@ -52,9 +52,6 @@ export function sendFailure(reply: any, error: AgentError): void {
     message: error.message,
     retryable: error.retryable,
     details: error.details,
-    stdout: error.stdout,
-    stderr: error.stderr,
-    exitCode: error.exitCode,
   };
   const envelope: FailureEnvelope = {
     ok: false,
