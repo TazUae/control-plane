@@ -1,6 +1,8 @@
 import { ProvisioningOperationResult } from "../contracts/provisioning.js";
+import { AgentError } from "../lib/errors.js";
 import { AllowedProvisioningAction } from "../providers/erpnext/commands.js";
 import { ErpnextExecutor } from "../providers/erpnext/executor.js";
+import { validateSite } from "../providers/erpnext/validation.js";
 import type { ErpExecutionBackend } from "../providers/erpnext/erp-execution-backend.js";
 
 export class ProvisioningService {
@@ -13,7 +15,17 @@ export class ProvisioningService {
   }
 
   async run(action: AllowedProvisioningAction, site: string): Promise<ProvisioningOperationResult> {
-    return await this.executor.run(action, site);
+    let safeSite: string;
+    try {
+      safeSite = validateSite(site);
+    } catch (error) {
+      throw new AgentError("ERP_VALIDATION_FAILED", "Invalid site input", {
+        details: error instanceof Error ? error.message : String(error),
+        retryable: false,
+        statusCode: 422,
+      });
+    }
+    return await this.executor.run(action, safeSite);
   }
 
   async backendHealthCheck(): Promise<{ ok: boolean; durationMs?: number }> {

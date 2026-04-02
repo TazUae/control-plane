@@ -67,9 +67,20 @@ export class ErpnextExecutor {
   constructor(private readonly backend: ErpExecutionBackend) {}
 
   async run(action: AllowedProvisioningAction, site: string): Promise<ProvisioningOperationResult> {
-    const safeSite = validateSite(site);
-    const derivedDomain = validateDomain(`${safeSite}.${env.ERP_BASE_DOMAIN}`);
-    const derivedApiUsername = validateUsername(`${env.ERP_API_USERNAME_PREFIX}_${safeSite}`);
+    let safeSite: string;
+    let derivedDomain: string;
+    let derivedApiUsername: string;
+    try {
+      safeSite = validateSite(site);
+      derivedDomain = validateDomain(`${safeSite}.${env.ERP_BASE_DOMAIN}`);
+      derivedApiUsername = validateUsername(`${env.ERP_API_USERNAME_PREFIX}_${safeSite}`);
+    } catch (error) {
+      throw new AgentError("ERP_VALIDATION_FAILED", "Invalid provisioning input", {
+        details: error instanceof Error ? error.message : String(error),
+        retryable: false,
+        statusCode: 422,
+      });
+    }
     logger.info({ provider: "erpnext", action, site }, "ERP action started");
 
     try {

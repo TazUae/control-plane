@@ -7,6 +7,21 @@
 
 import type { SafeBackendError } from "./errors.js";
 
+export type ExecutionFailureCode =
+  | "INFRA_UNAVAILABLE"
+  | "ERP_COMMAND_FAILED"
+  | "ERP_TIMEOUT"
+  | "ERP_VALIDATION_FAILED"
+  | "ERP_PARTIAL_SUCCESS"
+  | "SITE_ALREADY_EXISTS";
+
+export type ExecutionResult = {
+  ok: boolean;
+  code?: ExecutionFailureCode;
+  message?: string;
+  retryable?: boolean;
+};
+
 export type ErpBackendExecSuccess = {
   durationMs: number;
   metadata?: Record<string, string | number | boolean>;

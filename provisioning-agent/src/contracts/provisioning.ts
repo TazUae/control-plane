@@ -16,7 +16,7 @@ export const SiteOperationRequestSchema = z.object({
     .string()
     .trim()
     .min(3)
-    .max(63)
+    .max(50)
     .regex(/^[a-z0-9-]+$/, "site must match ^[a-z0-9-]+$"),
   context: z
     .object({
