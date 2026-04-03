@@ -4,8 +4,9 @@
 # - Set ERP_BENCH_DOCKER_VOLUME to the SAME Docker volume (or use a bind mount) that backs
 #   `/home/frappe/frappe-bench` on your ERPNext backend so `bench` and `sites/` exist.
 # - Put ERP_REMOTE_TOKEN / ERP_ADMIN_PASSWORD / ERP_DB_ROOT_PASSWORD in your Dokploy env or a local .env file.
-# - Join the same user-defined network(s) as provisioning-agent so ERP_REMOTE_BASE_URL can
-#   resolve (e.g. http://erp-execution-service:8790). Do not publish 8790 publicly.
+# - `dokploy-network`: provisioning-agent / control-plane reach this service (e.g. http://erp-execution-service:8790).
+# - `axis-erp-internal`: same user-defined network as ERPNext stack so `bench` resolves `db`, `redis-cache`, `redis-queue`.
+#   The Docker network name must exist on the host (from your ERPNext compose project).
 #
 # Build context: this directory (erp-execution-service).
 #
@@ -22,10 +23,11 @@ services:
         ERP_RUNTIME_IMAGE: ${ERP_RUNTIME_IMAGE:-frappe/erpnext:v15}
     init: true
     restart: unless-stopped
+    user: frappe
     working_dir: /home/frappe/frappe-bench
     environment:
-      NODE_ENV: production
-      PORT: "8790"
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-8790}
       ERP_REMOTE_TOKEN: ${ERP_REMOTE_TOKEN:?set ERP_REMOTE_TOKEN}
       ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:?set ERP_ADMIN_PASSWORD}
       ERP_DB_ROOT_PASSWORD: ${ERP_DB_ROOT_PASSWORD:?set ERP_DB_ROOT_PASSWORD}
@@ -38,7 +40,11 @@ services:
       - ${ERP_BENCH_DOCKER_VOLUME:?set ERP_BENCH_DOCKER_VOLUME to your bench/sites volume name}:/home/frappe/frappe-bench
     networks:
       - dokploy-network
+      - axis-erp-internal
 
 networks:
   dokploy-network:
+    external: true
+  axis-erp-internal:
+    name: axiserp-erpnext-pnzjyk_axis-erp-internal
     external: true
