@@ -6,6 +6,8 @@ const EnvSchema = z.object({
   /** Shared secret with provisioning-agent RemoteErpBackend (Bearer). */
   ERP_REMOTE_TOKEN: z.string().trim().min(16),
   ERP_ADMIN_PASSWORD: z.string().min(8),
+  /** MariaDB/MySQL root password for `bench new-site --db-root-password` (non-interactive). */
+  ERP_DB_ROOT_PASSWORD: z.string(),
   ERP_BENCH_PATH: z.string().min(1).default("/home/frappe/frappe-bench"),
   ERP_BENCH_EXECUTABLE: z.string().min(1).default("bench"),
   ERP_COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(120_000),

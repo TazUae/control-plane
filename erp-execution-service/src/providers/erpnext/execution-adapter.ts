@@ -89,6 +89,8 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
           this.env.ERP_ADMIN_PASSWORD,
           "--db-type",
           "mariadb",
+          "--db-root-password",
+          this.env.ERP_DB_ROOT_PASSWORD,
         ];
       case "installErp":
         return ["--site", site, "install-app", "erpnext"];
