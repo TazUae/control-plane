@@ -35,7 +35,7 @@ services:
       ERP_BENCH_EXECUTABLE: ${ERP_BENCH_EXECUTABLE:-bench}
       ERP_COMMAND_TIMEOUT_MS: ${ERP_COMMAND_TIMEOUT_MS:-120000}
     expose:
-      - "8790"
+      - "${PORT:-8790}"
     volumes:
       - ${ERP_BENCH_DOCKER_VOLUME:?set ERP_BENCH_DOCKER_VOLUME to your bench/sites volume name}:/home/frappe/frappe-bench
     networks:
