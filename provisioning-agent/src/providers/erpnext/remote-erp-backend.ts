@@ -1,4 +1,5 @@
 import { AgentError } from "../../lib/errors.js";
+import { env } from "../../config/env.js";
 import type {
   AddDomainInput,
   CreateApiUserInput,
@@ -9,41 +10,97 @@ import type {
   HealthCheckInput,
   InstallErpInput,
 } from "./erp-execution-backend.js";
+import { mapRemoteHttpResult, mapRemoteTransportFailure } from "./remote-mapper.js";
+import type { RemoteErpAction, RemoteExecutionEndpointConfig, RemoteRequestByAction } from "./remote-contract.js";
 
 /**
- * Scaffold only.
- * Remote ERP-side execution backend is intentionally not implemented yet.
- * Selecting this backend must fail clearly and safely without partial behavior.
+ * Remote ERP-side execution backend.
+ * This backend intentionally exposes only allowlisted ERP lifecycle actions.
  */
 export class RemoteErpBackend implements ErpExecutionBackend {
-  async createSite(_input: CreateSiteInput): Promise<ErpBackendExecSuccess> {
-    throw this.notImplemented();
+  private readonly baseUrl: string;
+  private readonly token: string;
+  private readonly timeoutMs: number;
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(config: RemoteExecutionEndpointConfig = {}, fetchImpl: typeof fetch = fetch) {
+    this.baseUrl = (config.baseUrl ?? env.ERP_REMOTE_BASE_URL ?? "").trim();
+    this.token = (config.token ?? env.ERP_REMOTE_TOKEN ?? "").trim();
+    this.timeoutMs = config.timeoutMs ?? env.ERP_REMOTE_TIMEOUT_MS;
+    this.fetchImpl = fetchImpl;
+    this.assertReady();
   }
 
-  async installErp(_input: InstallErpInput): Promise<ErpBackendExecSuccess> {
-    throw this.notImplemented();
+  async createSite(input: CreateSiteInput): Promise<ErpBackendExecSuccess> {
+    return await this.execute("createSite", input);
   }
 
-  async enableScheduler(_input: EnableSchedulerInput): Promise<ErpBackendExecSuccess> {
-    throw this.notImplemented();
+  async installErp(input: InstallErpInput): Promise<ErpBackendExecSuccess> {
+    return await this.execute("installErp", input);
   }
 
-  async addDomain(_input: AddDomainInput): Promise<ErpBackendExecSuccess> {
-    throw this.notImplemented();
+  async enableScheduler(input: EnableSchedulerInput): Promise<ErpBackendExecSuccess> {
+    return await this.execute("enableScheduler", input);
   }
 
-  async createApiUser(_input: CreateApiUserInput): Promise<ErpBackendExecSuccess> {
-    throw this.notImplemented();
+  async addDomain(input: AddDomainInput): Promise<ErpBackendExecSuccess> {
+    return await this.execute("addDomain", input);
   }
 
-  async healthCheck(_input: HealthCheckInput): Promise<ErpBackendExecSuccess> {
-    throw this.notImplemented();
+  async createApiUser(input: CreateApiUserInput): Promise<ErpBackendExecSuccess> {
+    return await this.execute("createApiUser", input);
   }
 
-  private notImplemented(): AgentError {
-    return new AgentError("INFRA_UNAVAILABLE", "Remote ERP execution backend is not implemented", {
-      retryable: false,
-      statusCode: 501,
-    });
+  async healthCheck(input: HealthCheckInput): Promise<ErpBackendExecSuccess> {
+    return await this.execute("healthCheck", { deep: input.deep });
+  }
+
+  private assertReady(): void {
+    const missing: string[] = [];
+    if (!this.baseUrl) {
+      missing.push("ERP_REMOTE_BASE_URL");
+    }
+    if (!this.token) {
+      missing.push("ERP_REMOTE_TOKEN");
+    }
+
+    if (missing.length > 0) {
+      throw new AgentError("INFRA_UNAVAILABLE", "Remote ERP backend is not configured", {
+        details: `Missing required env vars: ${missing.join(", ")}`,
+        retryable: false,
+        statusCode: 503,
+      });
+    }
+  }
+
+  private async execute<TAction extends RemoteErpAction>(
+    action: TAction,
+    payload: RemoteRequestByAction[TAction]
+  ): Promise<ErpBackendExecSuccess> {
+    const url = new URL("/v1/erp/lifecycle", this.baseUrl).toString();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await this.fetchImpl(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${this.token}`,
+        },
+        body: JSON.stringify({ action, payload }),
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      const body = text.length > 0 ? JSON.parse(text) : {};
+      return mapRemoteHttpResult(response.status, body);
+    } catch (error) {
+      if (error instanceof AgentError) {
+        throw error;
+      }
+      throw mapRemoteTransportFailure(error);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }

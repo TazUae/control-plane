@@ -1,12 +1,22 @@
 # Provisioning Interface Execution Checklist
 
+## Phase C Status (current)
+
+- [x] Added typed ERP execution backend abstraction in provisioning-agent runtime path.
+- [x] Kept `docker` as default backend for compatibility.
+- [x] Added `remote` backend path with explicit non-fallback behavior.
+- [x] Added typed ERP-side lifecycle request/response contract.
+- [x] Added remote failure mapping to existing taxonomy.
+- [x] Added remote backend env configuration keys.
+- [x] Added tests for config-missing, timeout, validation, and already-exists mapping.
+
 ## Scope Guardrails
 
-- [ ] Keep queue topology unchanged (`tenant-provisioning`, BullMQ producer/worker flow).
-- [ ] Preserve `runProvisioning` step order and retry behavior (max retries, backoff, step state writes).
-- [ ] Avoid DB schema changes unless blocked by a hard requirement.
-- [ ] Keep Docker adapter available as fallback; do not remove it.
-- [ ] Ship minimal, production-safe changes with feature-flagged adapter selection.
+- [x] Keep queue topology unchanged (`tenant-provisioning`, BullMQ producer/worker flow).
+- [x] Preserve `runProvisioning` step order and retry behavior (max retries, backoff, step state writes).
+- [x] Avoid DB schema changes unless blocked by a hard requirement.
+- [x] Keep Docker adapter available as fallback; do not remove it.
+- [x] Ship minimal, production-safe changes with feature-flagged adapter selection.
 
 ## Phase 1 - Interface and Contract
 
@@ -53,3 +63,4 @@
 - Direct docker execution from Control Plane is deprecated.
 - Remaining docker adapter exists only as temporary fallback when `PROVISIONING_API_URL` is unset.
 - Production target architecture is Control Plane orchestration + provisioning-agent execution.
+- For provisioning-agent ERP execution, `ERP_EXECUTION_BACKEND=docker` remains default until ERP-side lifecycle service is deployed.

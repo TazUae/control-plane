@@ -8,8 +8,8 @@ Internal-only provisioning service for ERP host actions.
 - Uses token auth (`Authorization: Bearer <PROVISIONING_API_TOKEN>`).
 - Executes only allowlisted ERP operations through the typed **`ErpExecutionBackend`** interface (`src/providers/erpnext/erp-execution-backend.ts`).
 - Backend is selected with **`ERP_EXECUTION_BACKEND`**:
-  - **`docker`** (default): `DockerExecBackend` temporary bridge using strict `docker exec` argv.
-  - **`remote`**: `RemoteErpBackend` scaffold that fails safely with not-implemented errors.
+  - **`docker`** (default): `DockerExecBackend` — **temporary** compatibility bridge using strict `docker exec` argv.
+  - **`remote`**: `RemoteErpBackend` calls the ERP-side **`erp-execution-service`** package (`POST /v1/erp/lifecycle`, typed contract in `remote-contract.ts`) and fails fast if required remote config is missing.
 - No arbitrary shell execution, no `bash -c`, no generic bench passthrough, no generic Docker control.
 
 ## Endpoints
@@ -37,8 +37,8 @@ Internal-only provisioning service for ERP host actions.
 
 ### ERP execution backend
 
-`ERP_EXECUTION_BACKEND=docker` is the default and is intentionally temporary.
-The long-term target is an ERP-side remote execution interface (`docs/erp-side-execution-interface.md`), with this agent calling a narrow typed API instead of Docker.
+`ERP_EXECUTION_BACKEND=docker` is the default and is intentionally **temporary** for backward-compatible deployments.
+The production target is **`remote`**, with **`RemoteErpBackend`** calling the **`erp-execution-service`** implementation (`erp-execution-service/` in this repo, `POST /v1/erp/lifecycle`). See [`docs/erp-side-execution-service.md`](../docs/erp-side-execution-service.md). Do **not** remove `DockerExecBackend` until rollout is complete.
 
 ### Container
 
@@ -69,6 +69,9 @@ The long-term target is an ERP-side remote execution interface (`docs/erp-side-e
 
 - **`ERP_EXECUTION_BACKEND`**: `docker` (default) or `remote`.
 - **`ERP_CONTAINER_NAME`**: required for `docker` backend.
+- **`ERP_REMOTE_BASE_URL`**: required for `remote` backend.
+- **`ERP_REMOTE_TOKEN`**: required for `remote` backend bearer auth.
+- **`ERP_REMOTE_TIMEOUT_MS`**: optional for `remote` backend request timeout (default `15000`).
 
 ### Networking Assumptions
 
@@ -92,4 +95,4 @@ The long-term target is an ERP-side remote execution interface (`docs/erp-side-e
 - No generic command execution endpoint is provided; **no arbitrary command execution** — only typed backend methods (`createSite`, `installErp`, etc.), never raw bench or shell passthrough.
 - Response envelopes are contract-aligned for Control Plane integration.
 - ERP execution is allowlisted per action; both backends use `spawn` with argv only (no shell).
-- Configure ERP runtime with `ERP_EXECUTION_BACKEND`, `ERP_BENCH_PATH`, `ERP_BASE_DOMAIN`, `ERP_API_USERNAME_PREFIX`, `ERP_COMMAND_TIMEOUT_MS`, and `ERP_CONTAINER_NAME` (docker backend). See `docs/erp-execution-backend.md`.
+- Configure ERP runtime with `ERP_EXECUTION_BACKEND`, `ERP_BENCH_PATH`, `ERP_BASE_DOMAIN`, `ERP_API_USERNAME_PREFIX`, `ERP_COMMAND_TIMEOUT_MS`, and `ERP_CONTAINER_NAME` (docker backend), or with `ERP_REMOTE_BASE_URL` + `ERP_REMOTE_TOKEN` (+ optional `ERP_REMOTE_TIMEOUT_MS`) for remote mode. See `docs/erp-execution-backend.md`.

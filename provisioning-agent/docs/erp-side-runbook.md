@@ -1,6 +1,6 @@
-# Operator runbook: ERP-side `provisioning-agent` (`host_bench`)
+# Operator runbook: ERP-side `provisioning-agent` (legacy runtime notes)
 
-This runbook describes how to **relocate** the provisioning agent onto the **same runtime as Frappe bench** so `ERP_EXECUTION_MODE=host_bench` is valid. The **HTTP contract is unchanged**; Control Plane keeps the same endpoints and payloads—only **`PROVISIONING_API_URL`** (reachability) may need to change when the agent’s network location changes.
+This runbook describes legacy ERP-side runtime relocation notes. Strategic backend selection is now `ERP_EXECUTION_BACKEND=docker|remote`; `host_bench` is internal/legacy and not the approved long-term architecture. The **HTTP contract is unchanged**; Control Plane keeps the same endpoints and payloads—only **`PROVISIONING_API_URL`** (reachability) may need to change when the agent’s network location changes.
 
 Background: **`docs/erp-side-runtime.md`**. Backend semantics: **`docs/erp-execution-backend.md`**.
 
@@ -32,7 +32,7 @@ Background: **`docs/erp-side-runtime.md`**. Backend semantics: **`docs/erp-execu
 | **Secrets** | **`PROVISIONING_API_TOKEN`** and **`ERP_ADMIN_PASSWORD`** match what Control Plane / ERP expect; store in root-owned mode `640` env file or secret manager. |
 | **Network** | Route/firewall from **Control Plane → this host:`PORT`**. If the agent was previously at `http://provisioning-agent:8080` on Docker DNS, after move you typically use **`http://<private-ip-or-dns>:8080`** reachable from CP. |
 
-Startup validation (`ERP_EXECUTION_MODE=host_bench`) fails fast if **`ERP_BENCH_PATH`** is missing or wrong—see `src/config/host-bench-runtime.ts`.
+Legacy host-bench validation fails fast if **`ERP_BENCH_PATH`** is missing or wrong—see `src/config/host-bench-runtime.ts`.
 
 ---
 
@@ -42,19 +42,19 @@ Startup validation (`ERP_EXECUTION_MODE=host_bench`) fails fast if **`ERP_BENCH_
 
 Set these in an **`EnvironmentFile`** (e.g. `/etc/provisioning-agent/environment`) or equivalent:
 
-| Variable | `host_bench` notes |
+| Variable | backend/runtime notes |
 |----------|---------------------|
 | `NODE_ENV` | `production` |
 | `PORT` | e.g. `8080` (must match firewall and Control Plane URL) |
 | `PROVISIONING_API_TOKEN` | Strong shared secret with Control Plane |
 | `ERP_ADMIN_PASSWORD` | ERP admin password for scripted operations |
-| `ERP_EXECUTION_MODE` | **`host_bench`** |
+| `ERP_EXECUTION_BACKEND` | **`docker`** for current supported strategic path (default); `remote` is scaffold-only and currently returns not-implemented |
 | `ERP_BENCH_PATH` | Absolute path to real bench on **this** host |
 | `ERP_BENCH_EXECUTABLE` | `bench` or absolute path |
 | `ERP_BASE_DOMAIN` | As today |
 | `ERP_API_USERNAME_PREFIX` | As today |
 | `ERP_COMMAND_TIMEOUT_MS` | As today (e.g. `120000`) |
-| `ERP_CONTAINER_NAME` | Ignored in `host_bench`; keep or omit per your env schema (zod still accepts default). |
+| `ERP_CONTAINER_NAME` | Required for `docker` backend |
 
 Copy from **`deploy/erp-side/systemd/provisioning-agent.env.example`** and edit secrets/paths.
 
@@ -86,7 +86,7 @@ Adjust **`ExecStart`** if `node` is not `/usr/bin/node` (e.g. nvm-managed paths 
 
 1. **Choose install root** (e.g. `/opt/provisioning-agent`) and owner (e.g. `provisioning-agent:provisioning-agent`).
 2. **Copy codebase** or release artifact; run `npm ci --omit=dev && npm run build` as that user (or build in CI and copy `dist/` + `package.json` + lockfile + `node_modules` from `npm ci --omit=dev`).
-3. **Create** `/etc/provisioning-agent/environment` from the example; set **`ERP_EXECUTION_MODE=host_bench`**, correct **`ERP_BENCH_PATH`**, token, passwords.
+3. **Create** `/etc/provisioning-agent/environment` from the example; set **`ERP_EXECUTION_BACKEND=docker`** (current strategic default), token, and passwords.
 4. **Install** systemd unit; `daemon-reload`, `enable`, **do not start** yet if you need a maintenance window.
 5. **Firewall:** allow inbound TCP `PORT` from Control Plane subnet only.
 6. **Control Plane:** set **`PROVISIONING_API_URL`** to the new base URL (e.g. `http://10.x.x.x:8080`). Token must match **`PROVISIONING_API_TOKEN`**.
@@ -105,7 +105,7 @@ sudo systemctl status provisioning-agent --no-pager
 sudo journalctl -u provisioning-agent -n 50 --no-pager
 ```
 
-If validation fails, logs show **`host_bench runtime validation failed`** and the process exits—fix **`ERP_BENCH_PATH`** / **`ERP_BENCH_EXECUTABLE`**.
+If legacy host-bench validation fails, logs show runtime validation errors and the process exits.
 
 **Health (authenticated not required for GET /health):**
 
@@ -131,7 +131,7 @@ Goal: restore service using **`DockerExecBackend`** (or the previous agent insta
 
 1. **Control Plane:** set **`PROVISIONING_API_URL`** back to the previous base URL (e.g. internal Docker DNS `http://provisioning-agent:8080`).
 2. **ERP host:** `sudo systemctl stop provisioning-agent` (and `disable` if removing the service).
-3. **Previous agent:** ensure the old container/process is **running** with **`ERP_EXECUTION_MODE=docker`** and valid **`ERP_CONTAINER_NAME`**.
+3. **Previous agent:** ensure the old container/process is **running** with **`ERP_EXECUTION_BACKEND=docker`** and valid **`ERP_CONTAINER_NAME`**.
 4. **Verify:** `GET /health` on the old URL; run a safe read-only or staging provisioning check.
 5. **Firewall:** remove ERP-host rules that opened the agent port if no longer needed.
 
@@ -143,4 +143,4 @@ HTTP API semantics are identical between modes; rollback is **routing + runtime*
 
 - No generic command API; **`ErpExecutionBackend`** only.
 - Keep the agent **internal**; no public ingress by default.
-- **`DockerExecBackend`** remains **temporary compatibility** when the agent cannot co-locate with bench; prefer **`host_bench`** on this runbook’s runtime when `docker exec` is not the long-term model.
+- **`DockerExecBackend`** remains **temporary compatibility** today. The approved long-term direction is **`RemoteErpBackend`** via the ERP-side execution interface; keep any `host_bench` usage internal/legacy only.

@@ -2,8 +2,8 @@ import { accessSync, constants, existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 /**
- * Thrown when `ERP_EXECUTION_MODE=host_bench` but the filesystem does not match
- * what `HostBenchExecBackend` requires (real bench directory, optional executable path).
+ * Legacy/internal helper for host-bench runtime validation.
+ * Host-bench is not part of the strategic backend selector (`ERP_EXECUTION_BACKEND=docker|remote`).
  */
 export class HostBenchRuntimeError extends Error {
   override readonly name = "HostBenchRuntimeError";
@@ -23,7 +23,7 @@ function executableLooksLikeFilesystemPath(benchExecutable: string): boolean {
 }
 
 /**
- * Validates that `host_bench` mode can plausibly run: the bench workspace must exist.
+ * Validates that legacy/internal host-bench mode can plausibly run: the bench workspace must exist.
  * If `ERP_BENCH_EXECUTABLE` is a filesystem path, it must exist and be accessible.
  * A bare name (e.g. `bench`) is not checked here — it must be on `PATH` at runtime.
  *
@@ -32,7 +32,7 @@ function executableLooksLikeFilesystemPath(benchExecutable: string): boolean {
 export function validateHostBenchPaths(benchPath: string, benchExecutable: string): void {
   if (!existsSync(benchPath)) {
     throw new HostBenchRuntimeError(
-      `ERP_BENCH_PATH does not exist: ${benchPath}. host_bench requires the provisioning-agent process to run where the real Frappe bench directory is mounted or installed (see docs/erp-side-runtime.md).`
+      `ERP_BENCH_PATH does not exist: ${benchPath}. Legacy host-bench runtime requires the provisioning-agent process to run where the real Frappe bench directory is mounted or installed (see docs/erp-side-runtime.md).`
     );
   }
   const st = statSync(benchPath);

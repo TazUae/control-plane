@@ -13,6 +13,9 @@ import type {
 } from "./erp-execution-backend.js";
 
 /**
+ * @deprecated Internal/legacy backend. Not part of strategic selector
+ * (`ERP_EXECUTION_BACKEND=docker|remote`).
+ *
  * Non-Docker backend: same allowlisted `bench` subcommands as `DockerExecBackend`, `cwd` = bench dir.
  * The **process** must run in an ERP-side runtime with a real bench tree (docs/erp-side-runtime.md);
  * the stock slim Docker image alone is insufficient unless bench is mounted. No `docker exec`;

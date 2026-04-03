@@ -13,8 +13,8 @@
 
 Backend selection is controlled by `ERP_EXECUTION_BACKEND`:
 
-- `docker` (default): `DockerExecBackend`
-- `remote`: `RemoteErpBackend` scaffold that fails safely with a clear not-implemented error
+- `docker` (default): `DockerExecBackend` — **temporary** compatibility bridge only.
+- `remote`: `RemoteErpBackend` calls the ERP-side **`erp-execution-service`** (`POST /v1/erp/lifecycle`, typed contract in `remote-contract.ts`). Configure `ERP_REMOTE_BASE_URL`, `ERP_REMOTE_TOKEN`, and optional `ERP_REMOTE_TIMEOUT_MS`.
 
 ## Important constraints
 
@@ -51,7 +51,7 @@ Raw command stdout/stderr stay internal.
 
 1. Keep current Control Plane orchestration and route contract unchanged.
 2. Keep queue/worker/state-machine flow unchanged.
-3. Implement ERP-side narrow execution interface (see `docs/erp-side-execution-interface.md`).
-4. Implement `RemoteErpBackend` against that interface.
-5. Flip `ERP_EXECUTION_BACKEND=remote` per environment when ready.
-6. Remove Docker bridge dependency after successful rollout.
+3. Deploy **`erp-execution-service`** on the ERP side (see [`docs/erp-side-execution-service.md`](../../docs/erp-side-execution-service.md)).
+4. `RemoteErpBackend` in this repo already targets that contract; set `ERP_REMOTE_BASE_URL` / `ERP_REMOTE_TOKEN` / `ERP_REMOTE_TIMEOUT_MS`.
+5. Flip `ERP_EXECUTION_BACKEND=remote` per environment when ready (default remains `docker` until you explicitly change it).
+6. Remove `DockerExecBackend` only after successful rollout and validation.

@@ -14,6 +14,9 @@ const EnvSchema = z.object({
   ERP_API_USERNAME_PREFIX: z.string().min(1).default("cp"),
   ERP_COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(120_000),
   ERP_EXECUTION_BACKEND: z.enum(["docker", "remote"]).default("docker"),
+  ERP_REMOTE_BASE_URL: z.string().trim().url().optional(),
+  ERP_REMOTE_TOKEN: z.string().trim().min(1).optional(),
+  ERP_REMOTE_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(15000),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
