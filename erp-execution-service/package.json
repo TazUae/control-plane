@@ -7,6 +7,7 @@
     "dev": "tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "docker:build": "docker build -t erp-execution-service:latest .",
     "test": "node --import tsx --test src/app.test.ts src/providers/erpnext/result-mapper.test.ts"
   },
   "dependencies": {
