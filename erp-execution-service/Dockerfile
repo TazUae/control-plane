@@ -1,33 +1,28 @@
 # syntax=docker/dockerfile:1
 #
-# Build from repository root so `packages/erp-utils` resolves for `file:../packages/erp-utils`:
-#   docker build -f erp-execution-service/Dockerfile .
+# Build from this repository root (standalone erp-execution-service):
+#   docker build -t erp-execution-service:latest .
 #
-# Runtime: pure Node — HTTP bridge to ERPNext (`ERP_BASE_URL`). No bench, Frappe image, or shared sites volume.
+# Runtime: pure Node — HTTP bridge to ERPNext (`ERP_BASE_URL`).
 
 FROM node:20-bookworm AS builder
 WORKDIR /build
 
-COPY packages/erp-utils/package.json packages/erp-utils/tsconfig.json ./packages/erp-utils/
-COPY packages/erp-utils/site-config.ts ./packages/erp-utils/
-WORKDIR /build/packages/erp-utils
-RUN npm install && npm run build
+COPY package.json package-lock.json ./
+COPY packages/erp-utils ./packages/erp-utils
+COPY tsconfig.json ./
+COPY src ./src
 
-WORKDIR /build/erp-execution-service
-COPY erp-execution-service/package.json erp-execution-service/package-lock.json ./
-RUN npm ci
-COPY erp-execution-service/tsconfig.json ./
-COPY erp-execution-service/src ./src
-RUN npm run build && npm prune --omit=dev
+RUN npm ci && npm run build && npm prune --omit=dev
 
 FROM node:20-bookworm
 
 WORKDIR /opt/erp-execution-service
 
-COPY --from=builder /build/erp-execution-service/package.json /build/erp-execution-service/package-lock.json ./
+COPY --from=builder /build/package.json /build/package-lock.json ./
 COPY --from=builder /build/packages/erp-utils /opt/packages/erp-utils
-COPY --from=builder /build/erp-execution-service/node_modules ./node_modules
-COPY --from=builder /build/erp-execution-service/dist ./dist
+COPY --from=builder /build/node_modules ./node_modules
+COPY --from=builder /build/dist ./dist
 
 USER node
 

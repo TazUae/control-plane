@@ -49,9 +49,15 @@ ERPNext must implement `frappe.api.provisioning.read_site_db_name` (used for `re
 - Do not expose this service on the public internet without additional controls.
 - Point `provisioning-agent` at `ERP_REMOTE_BASE_URL` (e.g. `http://erp-execution-service:8790`) and set `ERP_REMOTE_TOKEN` to the **same value** on both sides.
 
+### Docker / Dokploy
+
+- This repo is **standalone**: clone root contains `Dockerfile` and **`docker-compose.yml`** (required for Dokploy compose deployments).
+- Build: `docker build -t erp-execution-service .` from the repo root.
+- Compose: `docker compose up -d --build` (set `ERP_REMOTE_TOKEN`, `ERP_ADMIN_PASSWORD`, `ERP_BASE_URL` in the environment or an `.env` file).
+
 ## Documentation
 
-- Repository root: [`docs/erp-side-execution-service.md`](../docs/erp-side-execution-service.md)
+- Related design notes (when this package lives inside the control-plane monorepo): [`docs/erp-side-execution-service.md`](https://github.com/TazUae/control-plane/blob/main/docs/erp-side-execution-service.md)
 
 ## TODOs before switching production from Docker to remote
 

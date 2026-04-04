@@ -1,19 +1,11 @@
-# Dokploy / Docker Compose — erp-execution-service (internal HTTP only; no host port publish).
-#
-# Prerequisites:
-# - Put ERP_REMOTE_TOKEN / ERP_ADMIN_PASSWORD / ERP_BASE_URL in your Dokploy env or a local .env file.
-# - `dokploy-network`: provisioning-agent / control-plane reach this service (e.g. http://erp-execution-service:8790).
-# - `axis-erp-internal`: same user-defined network as ERPNext stack so ERP_BASE_URL resolves to the backend.
-#
-# Build context: repository root (needs `packages/erp-utils`).
+# Optional: same as docker-compose.yml with external networks (when used from monorepo path).
+# For github.com/TazUae/erp-execution-service use docker-compose.yml at repo root.
 
 name: erp-execution-service
 
 services:
   erp-execution-service:
-    build:
-      context: ..
-      dockerfile: erp-execution-service/Dockerfile
+    build: .
     init: true
     restart: unless-stopped
     environment:
