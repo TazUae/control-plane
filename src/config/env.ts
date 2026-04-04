@@ -10,6 +10,14 @@ const EnvSchema = z.object({
   PROVISIONING_API_URL: z.string().url().optional(),
   PROVISIONING_API_TOKEN: z.string().min(16).optional(),
   PROVISIONING_API_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(120_000),
+  /**
+   * When true, worker re-reads `db_name` via provisioning-agent after all steps and fails if it
+   * disagrees with the persisted tenant `erpDbName` (extra guard against drift).
+   */
+  PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE: z
+    .union([z.literal("true"), z.literal("false")])
+    .default("false")
+    .transform((v) => v === "true"),
   ERP_CONTAINER_NAME: z.string().min(1).default("axiserp-erpnext-pnzjyk-backend-1"),
   ERP_ADMIN_PASSWORD: z.string().min(8),
 }).superRefine((data, ctx) => {

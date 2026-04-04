@@ -21,6 +21,11 @@ type IdempotentOutcome = {
   alreadyConfigured?: boolean;
 };
 
+function pickDbName(metadata?: Record<string, string | number | boolean>): string | undefined {
+  const v = metadata?.dbName;
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : undefined;
+}
+
 export function detectIdempotentOutcome(
   action: AllowedProvisioningAction,
   stdout: string,
@@ -66,7 +71,11 @@ export function detectIdempotentOutcome(
 export class ErpnextExecutor {
   constructor(private readonly backend: ErpExecutionBackend) {}
 
-  async run(action: AllowedProvisioningAction, site: string): Promise<ProvisioningOperationResult> {
+  async run(
+    action: AllowedProvisioningAction,
+    site: string,
+    opts?: { requestId?: string }
+  ): Promise<ProvisioningOperationResult> {
     let safeSite: string;
     let derivedDomain: string;
     let derivedApiUsername: string;
@@ -81,16 +90,36 @@ export class ErpnextExecutor {
         statusCode: 422,
       });
     }
-    logger.info({ provider: "erpnext", action, site }, "ERP action started");
+    const requestId = opts?.requestId;
+    logger.info(
+      requestId ? { provider: "erpnext", action, site, requestId } : { provider: "erpnext", action, site },
+      "ERP action started"
+    );
 
     try {
-      const result = await this.dispatchBackend(action, safeSite, derivedDomain, derivedApiUsername);
-      logger.info({ provider: "erpnext", action, site, durationMs: result.durationMs }, "ERP action succeeded");
+      const result = await this.dispatchBackend(
+        action,
+        safeSite,
+        derivedDomain,
+        derivedApiUsername,
+        requestId
+      );
+      logger.info(
+        requestId
+          ? { provider: "erpnext", action, site, requestId, durationMs: result.durationMs }
+          : { provider: "erpnext", action, site, durationMs: result.durationMs },
+        "ERP action succeeded"
+      );
+      const dbName = action === "createSite" ? pickDbName(result.metadata) : undefined;
+      if (dbName) {
+        logger.info({ provider: "erpnext", action, site: safeSite, dbName }, "dbName extracted");
+      }
       return {
         action,
         site: safeSite,
         outcome: "applied",
         durationMs: result.durationMs,
+        dbName,
       };
     } catch (error) {
       const typed = error instanceof AgentError
@@ -103,6 +132,21 @@ export class ErpnextExecutor {
 
       const idempotent = detectIdempotentOutcome(action, typed.stdout ?? "", typed.stderr ?? "");
       if (idempotent) {
+        let dbName: string | undefined;
+        if (action === "createSite") {
+          try {
+            const r = await this.backend.readSiteDbName({ site: safeSite, requestId });
+            dbName = pickDbName(r.metadata);
+            if (dbName) {
+              logger.info(
+                { provider: "erpnext", action, site: safeSite, dbName },
+                "dbName extracted for idempotent createSite"
+              );
+            }
+          } catch {
+            /* optional: site_config unavailable */
+          }
+        }
         logger.info(
           {
             provider: "erpnext",
@@ -120,7 +164,32 @@ export class ErpnextExecutor {
           alreadyExists: idempotent.alreadyExists,
           alreadyInstalled: idempotent.alreadyInstalled,
           alreadyConfigured: idempotent.alreadyConfigured,
+          dbName,
         };
+      }
+
+      if (action === "createSite" && typed.code === "SITE_ALREADY_EXISTS") {
+        try {
+          const r = await this.backend.readSiteDbName({ site: safeSite, requestId });
+          const dbName = pickDbName(r.metadata);
+          if (dbName) {
+            logger.info(
+              { provider: "erpnext", action, site: safeSite, dbName },
+              "dbName extracted after SITE_ALREADY_EXISTS"
+            );
+            return {
+              action,
+              site: safeSite,
+              outcome: "already_done",
+              message: "Site already exists",
+              alreadyExists: true,
+              dbName,
+              durationMs: r.durationMs,
+            };
+          }
+        } catch {
+          /* fall through to error log */
+        }
       }
 
       logger.error(
@@ -143,19 +212,24 @@ export class ErpnextExecutor {
     action: AllowedProvisioningAction,
     safeSite: string,
     derivedDomain: string,
-    derivedApiUsername: string
+    derivedApiUsername: string,
+    requestId?: string
   ) {
     switch (action) {
       case "createSite":
-        return await this.backend.createSite({ site: safeSite });
+        return await this.backend.createSite({ site: safeSite, requestId });
       case "installErp":
-        return await this.backend.installErp({ site: safeSite });
+        return await this.backend.installErp({ site: safeSite, requestId });
       case "enableScheduler":
-        return await this.backend.enableScheduler({ site: safeSite });
+        return await this.backend.enableScheduler({ site: safeSite, requestId });
       case "addDomain":
-        return await this.backend.addDomain({ site: safeSite, domain: derivedDomain });
+        return await this.backend.addDomain({ site: safeSite, domain: derivedDomain, requestId });
       case "createApiUser":
-        return await this.backend.createApiUser({ site: safeSite, apiUsername: derivedApiUsername });
+        return await this.backend.createApiUser({
+          site: safeSite,
+          apiUsername: derivedApiUsername,
+          requestId,
+        });
     }
   }
 }

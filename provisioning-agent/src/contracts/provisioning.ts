@@ -31,6 +31,8 @@ export type SiteOperationRequest = z.infer<typeof SiteOperationRequestSchema>;
 export const ProvisioningOperationResultSchema = z.object({
   action: z.string().min(1),
   site: z.string().trim().min(1),
+  /** MariaDB schema name from `site_config.json` (`db_name`), not the site slug. */
+  dbName: z.string().trim().min(1).optional(),
   message: z.string().min(1).optional(),
   outcome: z.enum(["applied", "already_done"]).default("applied"),
   alreadyExists: z.boolean().optional(),

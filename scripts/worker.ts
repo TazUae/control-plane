@@ -14,11 +14,13 @@ const worker = new Worker(
         queueJobId: job.id,
         provisioningJobId: job.data?.jobId,
         tenantId: job.data?.tenantId,
+        requestId: job.data?.requestId,
       },
       "Worker received job"
     );
     await runProvisioning(job.data.jobId, {
       queueJobId: job.id?.toString(),
+      requestId: typeof job.data?.requestId === "string" ? job.data.requestId : undefined,
     });
   },
   { connection: redis }

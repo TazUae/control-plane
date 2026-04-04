@@ -41,6 +41,8 @@ export type SiteOperationRequest = z.infer<typeof SiteOperationRequestSchema>;
 export const ProvisioningOperationResultSchema = z.object({
   action: z.string().min(1),
   site: z.string().trim().min(1),
+  /** MariaDB schema name (`db_name` in ERP site_config), not the site slug. */
+  dbName: z.string().trim().min(1).optional(),
   message: z.string().min(1).optional(),
   /**
    * Idempotent outcome marker:

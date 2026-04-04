@@ -1,6 +1,8 @@
 import { execCommand } from "../../lib/exec.js";
 import { env } from "../../config/env.js";
 import { buildBenchOperationArgs } from "./commands.js";
+import { AgentError } from "../../lib/errors.js";
+import { readSiteConfigDbName } from "./site-config.js";
 import type {
   AddDomainInput,
   CreateApiUserInput,
@@ -10,6 +12,7 @@ import type {
   ErpExecutionBackend,
   HealthCheckInput,
   InstallErpInput,
+  ReadSiteDbNameInput,
 } from "./erp-execution-backend.js";
 
 /**
@@ -24,6 +27,22 @@ import type {
 export class HostBenchExecBackend implements ErpExecutionBackend {
   async createSite(input: CreateSiteInput): Promise<ErpBackendExecSuccess> {
     return await this.runBench("createSite", { site: input.site });
+  }
+
+  async readSiteDbName(input: ReadSiteDbNameInput): Promise<ErpBackendExecSuccess> {
+    const started = Date.now();
+    const read = await readSiteConfigDbName(env.ERP_BENCH_PATH, input.site);
+    if (!read.ok) {
+      throw new AgentError("ERP_PARTIAL_SUCCESS", "Could not read site_config db_name", {
+        details: read.details ?? read.code,
+        retryable: read.code === "ENOENT",
+        statusCode: 500,
+      });
+    }
+    return {
+      durationMs: Date.now() - started,
+      metadata: { dbName: read.dbName, site: input.site },
+    };
   }
 
   async installErp(input: InstallErpInput): Promise<ErpBackendExecSuccess> {

@@ -15,6 +15,17 @@ This document describes the **`erp-execution-service`** package in this reposito
 
 No other actions or generic command paths are supported.
 
+## Site slug vs MariaDB database name
+
+ERPNext does **not** use the site name (slug) as the MariaDB database name. Frappe generates a **hashed** database name (for example `_652d9db35da0a831`) and records it in **`sites/<site>/site_config.json`** as **`db_name`**.
+
+**Correct validation when checking that a database exists:**
+
+1. Read **`db_name`** from **`sites/<slug>/site_config.json`** on the bench host.
+2. Verify that database exists in MariaDB using that name.
+
+Do **not** assume the slug appears in `SHOW DATABASES` or grep MariaDB output for the slug alone.
+
 ## Endpoints
 
 ### `GET /internal/health`

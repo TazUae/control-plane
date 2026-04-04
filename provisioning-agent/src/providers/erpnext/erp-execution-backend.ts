@@ -27,16 +27,18 @@ export type ErpBackendExecSuccess = {
   metadata?: Record<string, string | number | boolean>;
 };
 
-export type CreateSiteInput = { site: string };
+export type CreateSiteInput = { site: string; requestId?: string };
 
-export type InstallErpInput = { site: string };
+export type ReadSiteDbNameInput = { site: string; requestId?: string };
 
-export type EnableSchedulerInput = { site: string };
+export type InstallErpInput = { site: string; requestId?: string };
 
-export type AddDomainInput = { site: string; domain: string };
+export type EnableSchedulerInput = { site: string; requestId?: string };
 
-export type CreateApiUserInput = { site: string; apiUsername: string };
-export type HealthCheckInput = { deep?: boolean };
+export type AddDomainInput = { site: string; domain: string; requestId?: string };
+
+export type CreateApiUserInput = { site: string; apiUsername: string; requestId?: string };
+export type HealthCheckInput = { deep?: boolean; requestId?: string };
 
 /**
  * Pluggable ERP execution layer. Each method maps to one allowlisted provisioning
@@ -44,6 +46,8 @@ export type HealthCheckInput = { deep?: boolean };
  */
 export interface ErpExecutionBackend {
   createSite(input: CreateSiteInput): Promise<ErpBackendExecSuccess>;
+  /** Read-only: loads `db_name` from `sites/<site>/site_config.json` (no bench mutation). */
+  readSiteDbName(input: ReadSiteDbNameInput): Promise<ErpBackendExecSuccess>;
   installErp(input: InstallErpInput): Promise<ErpBackendExecSuccess>;
   enableScheduler(input: EnableSchedulerInput): Promise<ErpBackendExecSuccess>;
   addDomain(input: AddDomainInput): Promise<ErpBackendExecSuccess>;

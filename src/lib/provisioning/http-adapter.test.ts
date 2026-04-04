@@ -158,3 +158,63 @@ test("accepts idempotent already-done success payload", async () => {
   assert.equal(result.outcome, "already_done");
   assert.equal(result.alreadyExists, true);
 });
+
+test("maps dbName from createSite success payload", async () => {
+  const HttpProvisioningAdapter = await loadHttpAdapter();
+  const adapter = new HttpProvisioningAdapter({
+    baseUrl: "https://provisioning.example.com",
+    token: "token-token-token-token",
+    fetchFn: async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            action: "createSite",
+            site: "acme",
+            outcome: "applied",
+            dbName: "_652d9db35da0a831",
+          },
+          timestamp,
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      ),
+  });
+
+  const result = await adapter.createSite("acme");
+  assert.equal(result.dbName, "_652d9db35da0a831");
+});
+
+test("resolveSiteDbName calls read-db-name endpoint", async () => {
+  const HttpProvisioningAdapter = await loadHttpAdapter();
+  let calledPath = "";
+  const adapter = new HttpProvisioningAdapter({
+    baseUrl: "https://provisioning.example.com",
+    token: "token-token-token-token",
+    fetchFn: async (url) => {
+      calledPath = new URL(url.toString()).pathname;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            action: "readSiteDbName",
+            site: "acme",
+            outcome: "applied",
+            dbName: "_abc123456789abcd",
+          },
+          timestamp,
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      );
+    },
+  });
+
+  const result = await adapter.resolveSiteDbName("acme");
+  assert.equal(calledPath, "/sites/read-db-name");
+  assert.equal(result.dbName, "_abc123456789abcd");
+});

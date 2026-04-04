@@ -9,6 +9,7 @@ import type {
   ErpExecutionBackend,
   HealthCheckInput,
   InstallErpInput,
+  ReadSiteDbNameInput,
 } from "./erp-execution-backend.js";
 import { mapRemoteHttpResult, mapRemoteTransportFailure } from "./remote-mapper.js";
 import type { RemoteErpAction, RemoteExecutionEndpointConfig, RemoteRequestByAction } from "./remote-contract.js";
@@ -32,27 +33,39 @@ export class RemoteErpBackend implements ErpExecutionBackend {
   }
 
   async createSite(input: CreateSiteInput): Promise<ErpBackendExecSuccess> {
-    return await this.execute("createSite", input);
+    return await this.execute("createSite", { site: input.site }, input.requestId);
+  }
+
+  async readSiteDbName(input: ReadSiteDbNameInput): Promise<ErpBackendExecSuccess> {
+    return await this.execute("readSiteDbName", { site: input.site }, input.requestId);
   }
 
   async installErp(input: InstallErpInput): Promise<ErpBackendExecSuccess> {
-    return await this.execute("installErp", input);
+    return await this.execute("installErp", { site: input.site }, input.requestId);
   }
 
   async enableScheduler(input: EnableSchedulerInput): Promise<ErpBackendExecSuccess> {
-    return await this.execute("enableScheduler", input);
+    return await this.execute("enableScheduler", { site: input.site }, input.requestId);
   }
 
   async addDomain(input: AddDomainInput): Promise<ErpBackendExecSuccess> {
-    return await this.execute("addDomain", input);
+    return await this.execute(
+      "addDomain",
+      { site: input.site, domain: input.domain },
+      input.requestId
+    );
   }
 
   async createApiUser(input: CreateApiUserInput): Promise<ErpBackendExecSuccess> {
-    return await this.execute("createApiUser", input);
+    return await this.execute(
+      "createApiUser",
+      { site: input.site, apiUsername: input.apiUsername },
+      input.requestId
+    );
   }
 
   async healthCheck(input: HealthCheckInput): Promise<ErpBackendExecSuccess> {
-    return await this.execute("healthCheck", { deep: input.deep });
+    return await this.execute("healthCheck", { deep: input.deep }, input.requestId);
   }
 
   private assertReady(): void {
@@ -75,25 +88,31 @@ export class RemoteErpBackend implements ErpExecutionBackend {
 
   private async execute<TAction extends RemoteErpAction>(
     action: TAction,
-    payload: RemoteRequestByAction[TAction]
+    payload: RemoteRequestByAction[TAction],
+    requestId?: string
   ): Promise<ErpBackendExecSuccess> {
     const url = new URL("/v1/erp/lifecycle", this.baseUrl).toString();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const body: Record<string, unknown> = { action, payload };
+      if (requestId) {
+        body.requestId = requestId;
+      }
       const response = await this.fetchImpl(url, {
         method: "POST",
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${this.token}`,
+          ...(requestId ? { "x-request-id": requestId } : {}),
         },
-        body: JSON.stringify({ action, payload }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       const text = await response.text();
-      const body = text.length > 0 ? JSON.parse(text) : {};
-      return mapRemoteHttpResult(response.status, body);
+      const responseBody = text.length > 0 ? JSON.parse(text) : {};
+      return mapRemoteHttpResult(response.status, responseBody);
     } catch (error) {
       if (error instanceof AgentError) {
         throw error;

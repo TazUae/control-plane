@@ -10,6 +10,7 @@
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "erp-utils": "file:../packages/erp-utils",
     "dotenv": "^16.4.0",
     "fastify": "^4.25.0",
     "pino": "^8.21.0",

@@ -9,7 +9,7 @@ import {
   SuccessEnvelopeSchema,
 } from "./contract.js";
 import { ProvisioningError } from "./errors.js";
-import { ProvisioningAdapter, ProvisioningOperationResult } from "./interface.js";
+import { ProvisioningAdapter, ProvisioningCallContext, ProvisioningOperationResult } from "./interface.js";
 
 type FetchLike = typeof fetch;
 
@@ -50,30 +50,34 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     }
   }
 
-  async createSite(site: string): Promise<ProvisioningOperationResult> {
-    return this.callSiteOperation("/sites/create", "createSite", site);
+  async createSite(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    return this.callSiteOperation("/sites/create", "createSite", site, ctx);
   }
 
-  async installErp(site: string): Promise<ProvisioningOperationResult> {
-    return this.callSiteOperation("/sites/install-erp", "installErp", site);
+  async resolveSiteDbName(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    return this.callSiteOperation("/sites/read-db-name", "readSiteDbName", site, ctx);
   }
 
-  async enableScheduler(site: string): Promise<ProvisioningOperationResult> {
-    return this.callSiteOperation("/sites/enable-scheduler", "enableScheduler", site);
+  async installErp(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    return this.callSiteOperation("/sites/install-erp", "installErp", site, ctx);
   }
 
-  async addDomain(site: string): Promise<ProvisioningOperationResult> {
-    return this.callSiteOperation("/sites/add-domain", "addDomain", site);
+  async enableScheduler(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    return this.callSiteOperation("/sites/enable-scheduler", "enableScheduler", site, ctx);
   }
 
-  async createApiUser(site: string): Promise<ProvisioningOperationResult> {
-    return this.callSiteOperation("/sites/create-api-user", "createApiUser", site);
+  async addDomain(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    return this.callSiteOperation("/sites/add-domain", "addDomain", site, ctx);
   }
 
-  async healthCheck(site: string): Promise<ProvisioningOperationResult> {
+  async createApiUser(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    return this.callSiteOperation("/sites/create-api-user", "createApiUser", site, ctx);
+  }
+
+  async healthCheck(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     const endpoint = "/health";
-    const json = await this.request("GET", endpoint);
+    const json = await this.request("GET", endpoint, undefined, ctx);
     const success = HealthSuccessEnvelopeSchema.safeParse(json);
     if (!success.success) {
       throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid provisioning health response payload", {
@@ -91,10 +95,18 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
   private async callSiteOperation(
     endpoint: string,
     action: string,
-    site: string
+    site: string,
+    ctx?: ProvisioningCallContext
   ): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
-    const json = await this.request("POST", endpoint, { site });
+    const payload: Record<string, unknown> = { site };
+    if (ctx?.requestId || ctx?.tenantId) {
+      payload.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", endpoint, payload, ctx);
     const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
     if (!success.success) {
       throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid provisioning API success payload", {
@@ -104,6 +116,7 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     }
     return {
       action: success.data.data.action || action,
+      dbName: success.data.data.dbName,
       outcome: success.data.data.outcome,
       alreadyExists: success.data.data.alreadyExists,
       alreadyInstalled: success.data.data.alreadyInstalled,
@@ -113,7 +126,12 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     };
   }
 
-  private async request(method: "GET" | "POST", endpoint: string, body?: unknown): Promise<unknown> {
+  private async request(
+    method: "GET" | "POST",
+    endpoint: string,
+    body?: unknown,
+    ctx?: ProvisioningCallContext
+  ): Promise<unknown> {
     const url = `${this.baseUrl}${endpoint}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -124,17 +142,21 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
         method,
         endpoint,
         timeoutMs: this.timeoutMs,
+        ...(ctx?.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx?.tenantId ? { tenantId: ctx.tenantId } : {}),
       },
       "Provisioning HTTP request started"
     );
 
     try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${this.token}`,
+        ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
+        ...(ctx?.requestId ? { "x-request-id": ctx.requestId } : {}),
+      };
       const response = await this.fetchFn(url, {
         method,
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-          "Content-Type": "application/json",
-        },
+        headers,
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
@@ -156,6 +178,7 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
           method,
           endpoint,
           status: response.status,
+          ...(ctx?.requestId ? { requestId: ctx.requestId } : {}),
         },
         "Provisioning HTTP request succeeded"
       );

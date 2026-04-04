@@ -17,6 +17,31 @@ const routeSpecs: RouteSpec[] = [
 ];
 
 export async function registerSiteRoutes(app: any, service: ProvisioningService): Promise<void> {
+  app.post("/sites/read-db-name", { preHandler: [requireBearerToken] }, async (req: any, reply: any) => {
+    const parsed = SiteOperationRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(422).send({
+        ok: false,
+        error: {
+          code: "ERP_VALIDATION_FAILED",
+          message: "Invalid request body",
+          retryable: false,
+          details: parsed.error.message,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const requestId = parsed.data.context?.requestId;
+    const result = await service.readSiteDbName(parsed.data.site, { requestId });
+    const response: SuccessEnvelope<typeof result> = {
+      ok: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+    return response;
+  });
+
   for (const spec of routeSpecs) {
     app.post(spec.path, { preHandler: [requireBearerToken] }, async (req: any, reply: any) => {
       const parsed = SiteOperationRequestSchema.safeParse(req.body);
@@ -33,7 +58,8 @@ export async function registerSiteRoutes(app: any, service: ProvisioningService)
         });
       }
 
-      const result = await service.run(spec.action, parsed.data.site);
+      const requestId = parsed.data.context?.requestId;
+      const result = await service.run(spec.action, parsed.data.site, { requestId });
       const response: SuccessEnvelope<typeof result> = {
         ok: true,
         data: result,

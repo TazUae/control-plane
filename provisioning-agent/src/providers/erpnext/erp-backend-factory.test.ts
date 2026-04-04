@@ -23,6 +23,7 @@ test("selected backend exposes required typed methods", async () => {
   const backend = createErpExecutionBackend("docker");
 
   assert.equal(typeof backend.createSite, "function");
+  assert.equal(typeof backend.readSiteDbName, "function");
   assert.equal(typeof backend.installErp, "function");
   assert.equal(typeof backend.enableScheduler, "function");
   assert.equal(typeof backend.addDomain, "function");

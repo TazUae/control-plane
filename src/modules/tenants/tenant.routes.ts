@@ -24,7 +24,7 @@ app.post(
   "/tenants",
   { preHandler: [requireInternalApiKey, idempotencyMiddleware] },
   async (req, reply) => {
-    const correlationId = req.id;
+    const requestId = String(req.id);
     const parsed = CreateTenantSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       return reply.code(422).send({
@@ -118,7 +118,7 @@ app.post(
       }
 
       logger.info(
-        { correlationId, provisioningJobId: result.jobId, tenantId: result.tenantId },
+        { requestId, provisioningJobId: result.jobId, tenantId: result.tenantId },
         "Provisioning queue enqueue started"
       );
 
@@ -128,11 +128,12 @@ app.post(
         slug,
         plan,
         region,
+        requestId,
       });
 
       logger.info(
         {
-          correlationId,
+          requestId,
           provisioningJobId: result.jobId,
           tenantId: result.tenantId,
           queueJobId: queueJob.id,

@@ -5,6 +5,7 @@ import type { ErpExecutionBackend } from "../providers/erpnext/erp-execution-bac
 function stubBackend(overrides: Partial<ErpExecutionBackend>): ErpExecutionBackend {
   const base: ErpExecutionBackend = {
     createSite: async () => ({ durationMs: 0 }),
+    readSiteDbName: async () => ({ durationMs: 0, metadata: { dbName: "_0000000000000000" } }),
     installErp: async () => ({ durationMs: 0 }),
     enableScheduler: async () => ({ durationMs: 0 }),
     addDomain: async () => ({ durationMs: 0 }),

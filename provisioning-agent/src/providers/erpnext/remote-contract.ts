@@ -3,6 +3,7 @@ import type { ExecutionFailureCode } from "./erp-execution-backend.js";
 
 export const RemoteErpActionSchema = z.enum([
   "createSite",
+  "readSiteDbName",
   "installErp",
   "enableScheduler",
   "addDomain",
@@ -16,6 +17,11 @@ export const CreateSiteRequestSchema = z.object({
   site: z.string().trim().min(1),
 });
 export type CreateSiteRequest = z.infer<typeof CreateSiteRequestSchema>;
+
+export const ReadSiteDbNameRequestSchema = z.object({
+  site: z.string().trim().min(1),
+});
+export type ReadSiteDbNameRequest = z.infer<typeof ReadSiteDbNameRequestSchema>;
 
 export const InstallErpRequestSchema = z.object({
   site: z.string().trim().min(1),
@@ -46,6 +52,7 @@ export type HealthCheckRequest = z.infer<typeof HealthCheckRequestSchema>;
 
 export type RemoteRequestByAction = {
   createSite: CreateSiteRequest;
+  readSiteDbName: ReadSiteDbNameRequest;
   installErp: InstallErpRequest;
   enableScheduler: EnableSchedulerRequest;
   addDomain: AddDomainRequest;
@@ -53,14 +60,22 @@ export type RemoteRequestByAction = {
   healthCheck: HealthCheckRequest;
 };
 
-export const RemoteExecuteRequestSchema = z.discriminatedUnion("action", [
+const RemoteExecuteDiscriminatedSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("createSite"), payload: CreateSiteRequestSchema }),
+  z.object({ action: z.literal("readSiteDbName"), payload: ReadSiteDbNameRequestSchema }),
   z.object({ action: z.literal("installErp"), payload: InstallErpRequestSchema }),
   z.object({ action: z.literal("enableScheduler"), payload: EnableSchedulerRequestSchema }),
   z.object({ action: z.literal("addDomain"), payload: AddDomainRequestSchema }),
   z.object({ action: z.literal("createApiUser"), payload: CreateApiUserRequestSchema }),
   z.object({ action: z.literal("healthCheck"), payload: HealthCheckRequestSchema }),
 ]);
+
+export const RemoteExecuteRequestSchema = z.intersection(
+  RemoteExecuteDiscriminatedSchema,
+  z.object({
+    requestId: z.string().trim().min(1).max(128).optional(),
+  })
+);
 export type RemoteExecuteRequest = z.infer<typeof RemoteExecuteRequestSchema>;
 
 export const RemoteExecutionSuccessDataSchema = z.object({

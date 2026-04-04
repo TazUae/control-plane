@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { env } from "../../config/env.js";
 import { logger } from "../logger.js";
 import { assertValidSlugOrSite } from "../validation.js";
-import { ProvisioningAdapter, ProvisioningOperationResult } from "./interface.js";
+import { ProvisioningAdapter, ProvisioningCallContext, ProvisioningOperationResult } from "./interface.js";
 import { ProvisioningError } from "./errors.js";
 
 type Action = "createSite" | "installErp" | "enableScheduler" | "addDomain" | "createApiUser" | "healthCheck";
@@ -23,7 +23,7 @@ export class DockerBenchProvisioningAdapter implements ProvisioningAdapter {
    */
   public readonly kind = "docker-bench" as const;
 
-  async createSite(site: string): Promise<ProvisioningOperationResult> {
+  async createSite(site: string, _ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     const result = await this.executeProvisioningAction({
       action: "createSite",
@@ -45,27 +45,27 @@ export class DockerBenchProvisioningAdapter implements ProvisioningAdapter {
     return { action: "createSite", stdout: result.stdout, stderr: result.stderr };
   }
 
-  async installErp(site: string): Promise<ProvisioningOperationResult> {
+  async installErp(site: string, _ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     return this.stubbedAction("installErp", site);
   }
 
-  async enableScheduler(site: string): Promise<ProvisioningOperationResult> {
+  async enableScheduler(site: string, _ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     return this.stubbedAction("enableScheduler", site);
   }
 
-  async addDomain(site: string): Promise<ProvisioningOperationResult> {
+  async addDomain(site: string, _ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     return this.stubbedAction("addDomain", site);
   }
 
-  async createApiUser(site: string): Promise<ProvisioningOperationResult> {
+  async createApiUser(site: string, _ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     return this.stubbedAction("createApiUser", site);
   }
 
-  async healthCheck(site: string): Promise<ProvisioningOperationResult> {
+  async healthCheck(site: string, _ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     return this.stubbedAction("healthCheck", site);
   }

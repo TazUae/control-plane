@@ -8,7 +8,7 @@
 # - `axis-erp-internal`: same user-defined network as ERPNext stack so `bench` resolves `db`, `redis-cache`, `redis-queue`.
 #   The Docker network name must exist on the host (from your ERPNext compose project).
 #
-# Build context: this directory (erp-execution-service).
+# Build context: repository root (needs `packages/erp-utils`).
 #
 # Optional: match your ERP image exactly — ERP_RUNTIME_IMAGE=frappe/erpnext:v15.63.0
 
@@ -17,8 +17,8 @@ name: erp-execution-service
 services:
   erp-execution-service:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: erp-execution-service/Dockerfile
       args:
         ERP_RUNTIME_IMAGE: ${ERP_RUNTIME_IMAGE:-frappe/erpnext:v15}
     init: true
@@ -31,6 +31,8 @@ services:
       ERP_REMOTE_TOKEN: ${ERP_REMOTE_TOKEN:?set ERP_REMOTE_TOKEN}
       ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:?set ERP_ADMIN_PASSWORD}
       ERP_DB_ROOT_PASSWORD: ${ERP_DB_ROOT_PASSWORD:?set ERP_DB_ROOT_PASSWORD}
+      ERP_DB_READONLY_USER: ${ERP_DB_READONLY_USER:-erp_readonly}
+      ERP_DB_READONLY_PASSWORD: ${ERP_DB_READONLY_PASSWORD:-change-me-erp-readonly-password}
       ERP_BENCH_PATH: ${ERP_BENCH_PATH:-/home/frappe/frappe-bench}
       ERP_BENCH_EXECUTABLE: ${ERP_BENCH_EXECUTABLE:-bench}
       ERP_COMMAND_TIMEOUT_MS: ${ERP_COMMAND_TIMEOUT_MS:-120000}

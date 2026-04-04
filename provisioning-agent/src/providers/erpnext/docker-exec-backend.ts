@@ -2,6 +2,8 @@ import { execCommand } from "../../lib/exec.js";
 import { env } from "../../config/env.js";
 import { buildDockerExecBenchArgv } from "./commands.js";
 import { mapBackendFailure } from "./errors.js";
+import { AgentError } from "../../lib/errors.js";
+import { parseSiteConfigDbNameJson } from "./site-config.js";
 import type {
   AddDomainInput,
   CreateApiUserInput,
@@ -11,6 +13,7 @@ import type {
   ErpBackendExecSuccess,
   ErpExecutionBackend,
   InstallErpInput,
+  ReadSiteDbNameInput,
 } from "./erp-execution-backend.js";
 
 /**
@@ -22,6 +25,32 @@ import type {
 export class DockerExecBackend implements ErpExecutionBackend {
   async createSite(input: CreateSiteInput): Promise<ErpBackendExecSuccess> {
     return await this.runBench("createSite", { site: input.site });
+  }
+
+  async readSiteDbName(input: ReadSiteDbNameInput): Promise<ErpBackendExecSuccess> {
+    const started = Date.now();
+    const rel = `sites/${input.site}/site_config.json`;
+    try {
+      const result = await execCommand(
+        "docker",
+        ["exec", "-w", env.ERP_BENCH_PATH, env.ERP_CONTAINER_NAME, "cat", rel],
+        { timeoutMs: env.ERP_COMMAND_TIMEOUT_MS }
+      );
+      const parsed = parseSiteConfigDbNameJson(result.stdout);
+      if (!parsed.ok) {
+        throw new AgentError("ERP_PARTIAL_SUCCESS", "Invalid site_config in ERP container", {
+          details: parsed.code,
+          retryable: false,
+          statusCode: 500,
+        });
+      }
+      return {
+        durationMs: Date.now() - started,
+        metadata: { dbName: parsed.dbName, site: input.site },
+      };
+    } catch (error) {
+      throw mapBackendFailure(error, "Could not read site_config from ERP container");
+    }
   }
 
   async installErp(input: InstallErpInput): Promise<ErpBackendExecSuccess> {
