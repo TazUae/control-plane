@@ -7,6 +7,7 @@ This document describes the **`erp-execution-service`** package in this reposito
 | Action | Payload |
 |--------|---------|
 | `createSite` | `{ "site": string }` |
+| `readSiteDbName` | `{ "site": string }` |
 | `installErp` | `{ "site": string }` |
 | `enableScheduler` | `{ "site": string }` |
 | `addDomain` | `{ "site": string, "domain": string }` |
@@ -17,14 +18,9 @@ No other actions or generic command paths are supported.
 
 ## Site slug vs MariaDB database name
 
-ERPNext does **not** use the site name (slug) as the MariaDB database name. Frappe generates a **hashed** database name (for example `_652d9db35da0a831`) and records it in **`sites/<site>/site_config.json`** as **`db_name`**.
+ERPNext does **not** use the site name (slug) as the MariaDB database name. Frappe generates a **hashed** database name (for example `_652d9db35da0a831`) and stores it as **`db_name`**.
 
-**Correct validation when checking that a database exists:**
-
-1. Read **`db_name`** from **`sites/<slug>/site_config.json`** on the bench host.
-2. Verify that database exists in MariaDB using that name.
-
-Do **not** assume the slug appears in `SHOW DATABASES` or grep MariaDB output for the slug alone.
+This service resolves **`db_name`** by calling ERPNext over HTTP (`frappe.api.provisioning.read_site_db_name`). Do **not** assume the slug appears in `SHOW DATABASES` or grep MariaDB output for the slug alone.
 
 ## Endpoints
 
@@ -95,8 +91,8 @@ Unauthorized requests return **401** with a failure-shaped body (`code: ERP_VALI
 
 | Code | Meaning |
 |------|---------|
-| `INFRA_UNAVAILABLE` | Missing runtime/executable, spawn failure, or other dependency failure |
-| `ERP_COMMAND_FAILED` | Allowlisted command ran but exited non-zero |
+| `INFRA_UNAVAILABLE` | ERPNext unreachable, bad response, or other dependency failure |
+| `ERP_COMMAND_FAILED` | Allowlisted ERP method returned an error |
 | `ERP_TIMEOUT` | Action exceeded `ERP_COMMAND_TIMEOUT_MS` |
 | `ERP_VALIDATION_FAILED` | Invalid JSON envelope, invalid payload, semantic validation failure, or unauthorized |
 | `ERP_PARTIAL_SUCCESS` | Reserved for ambiguous states (not used in normal flows for this service) |
@@ -104,11 +100,11 @@ Unauthorized requests return **401** with a failure-shaped body (`code: ERP_VALI
 
 HTTP status codes align with `provisioning-agent` `remote-mapper` expectations (for example `503` / `400` / `504` / `422` / `500` / `409` for the six failure codes).
 
-**Important:** Raw **stdout/stderr** from bench are **not** returned in API responses. They may appear only in **internal** service logs for debugging.
+**Important:** Raw ERP error text is not echoed verbatim to clients; details may appear in **internal** service logs.
 
 ## Internal-only deployment expectation
 
-- Run beside the ERP bench (or on the same host) with **restricted network access**.
+- Run on a **private network** with reachability to ERPNext (`ERP_BASE_URL`).
 - Not intended as a public-facing API.
 - Pair with `provisioning-agent` using a shared secret (`ERP_REMOTE_TOKEN`).
 
@@ -118,10 +114,10 @@ This service does **not** implement:
 
 - Arbitrary shell execution
 - A generic command runner
-- Unrestricted bench passthrough
+- Unrestricted bench or shell passthrough
 - Generic Docker or host control APIs
 
-Execution is limited to fixed **argv** sequences for each allowlisted action inside `ErpExecutionAdapter`.
+Execution is limited to fixed **HTTP POST** paths to Frappe methods for each allowlisted action inside `ErpExecutionAdapter`.
 
 ## Relationship to provisioning-agent
 

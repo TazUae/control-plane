@@ -13,7 +13,6 @@
   "dependencies": {
     "erp-utils": "file:../packages/erp-utils",
     "fastify": "^4.25.0",
-    "mysql2": "^3.20.0",
     "pino": "^8.21.0",
     "zod": "^3.22.0"
   },

@@ -3,12 +3,7 @@
 # Build from repository root so `packages/erp-utils` resolves for `file:../packages/erp-utils`:
 #   docker build -f erp-execution-service/Dockerfile .
 #
-# Runtime: Node on the Frappe image family keeps UID/volume parity with ERPNext when mounting
-# `sites/` for `readSiteDbName`. Lifecycle actions use HTTP to ERPNext (`ERP_BASE_URL`), not bench.
-#
-# Build-time override: docker build --build-arg ERP_RUNTIME_IMAGE=frappe/erpnext:v15.63.0 .
-
-ARG ERP_RUNTIME_IMAGE=frappe/erpnext:v15
+# Runtime: pure Node — HTTP bridge to ERPNext (`ERP_BASE_URL`). No bench, Frappe image, or shared sites volume.
 
 FROM node:20-bookworm AS builder
 WORKDIR /build
@@ -25,25 +20,16 @@ COPY erp-execution-service/tsconfig.json ./
 COPY erp-execution-service/src ./src
 RUN npm run build && npm prune --omit=dev
 
-FROM node:20-bookworm AS nodebinary
+FROM node:20-bookworm
 
-FROM ${ERP_RUNTIME_IMAGE}
+WORKDIR /opt/erp-execution-service
 
-USER root
+COPY --from=builder /build/erp-execution-service/package.json /build/erp-execution-service/package-lock.json ./
+COPY --from=builder /build/packages/erp-utils /opt/packages/erp-utils
+COPY --from=builder /build/erp-execution-service/node_modules ./node_modules
+COPY --from=builder /build/erp-execution-service/dist ./dist
 
-RUN install -d -o frappe -g frappe /opt/erp-execution-service
-
-COPY --from=nodebinary /usr/local/bin/node /usr/local/bin/node
-
-COPY --from=builder --chown=frappe:frappe /build/erp-execution-service/package.json /build/erp-execution-service/package-lock.json /opt/erp-execution-service/
-# `erp-utils` is `file:../packages/erp-utils`; npm links node_modules/erp-utils -> ../../packages/erp-utils.
-# Without this copy, the symlink points at a path that does not exist in the runtime image.
-COPY --from=builder --chown=frappe:frappe /build/packages/erp-utils /opt/packages/erp-utils
-COPY --from=builder --chown=frappe:frappe /build/erp-execution-service/node_modules /opt/erp-execution-service/node_modules
-COPY --from=builder --chown=frappe:frappe /build/erp-execution-service/dist /opt/erp-execution-service/dist
-
-USER frappe
-WORKDIR /home/frappe/frappe-bench
+USER node
 
 ENV NODE_ENV=production
 ENV PORT=8790

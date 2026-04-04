@@ -1,7 +1,5 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { ZodError } from "zod";
-import { isUnexpectedDbNameFormat, parseSiteConfig } from "erp-utils";
+import { isUnexpectedDbNameFormat } from "erp-utils";
 import type { Env } from "../../config/env.js";
 import { callErp, ErpCallError } from "../../lib/call-erp.js";
 import type { RemoteExecuteRequest } from "../../contracts/lifecycle.js";
@@ -9,8 +7,6 @@ import type { RemoteExecutionFailure } from "../../contracts/lifecycle.js";
 import { validateDomain, validateSite, validateUsername } from "./validation.js";
 import { mapErpCallErrorToFailure } from "./result-mapper.js";
 import type { Logger } from "pino";
-import type { ReadSiteDbNameResult } from "./site-config.js";
-import { verifyMariaDbSchemaExists } from "./mariadb-schema-validator.js";
 
 export type CreateSiteResult = {
   success: true;
@@ -31,6 +27,7 @@ const SITE_CONFIG_POLL_INTERVAL_MS = 1000;
 
 const ERP_METHOD = {
   createSite: "/api/method/frappe.api.provisioning.create_site",
+  readSiteDbName: "/api/method/frappe.api.provisioning.read_site_db_name",
   installErp: "/api/method/frappe.api.provisioning.install_erp",
   enableScheduler: "/api/method/frappe.api.provisioning.enable_scheduler",
   addDomain: "/api/method/frappe.api.provisioning.add_domain",
@@ -38,48 +35,70 @@ const ERP_METHOD = {
   healthPing: "/api/method/frappe.ping",
 } as const;
 
+function parseDbNameFromErpPayload(data: Record<string, unknown>): string | null {
+  const raw = data.db_name ?? data.dbName;
+  if (typeof raw === "string" && raw.trim()) {
+    return raw.trim();
+  }
+  return null;
+}
+
 /**
- * Polls until `site_config.json` exists and contains `db_name` (no fixed delay).
- * Raw paths only; no shell.
+ * Polls ERP until `read_site_db_name` returns a `db_name` (HTTP only; no filesystem).
  */
-async function waitForSiteConfig(
-  benchPath: string,
-  site: string,
-  log: Logger
+async function pollReadSiteDbName(
+  env: Env,
+  log: Logger,
+  site: string
 ): Promise<{ dbName: string; attempts: number; waitMs: number }> {
-  const filePath = path.join(benchPath, "sites", site, "site_config.json");
   const started = Date.now();
+  let lastError: ErpCallError | undefined;
+
   for (let i = 0; i < SITE_CONFIG_POLL_MAX_ATTEMPTS; i++) {
     try {
-      const data = await readFile(filePath, "utf-8");
-      const { dbName } = parseSiteConfig(data);
-      const waitMs = Date.now() - started;
-      if (i > 0) {
-        log.info(
-          {
-            metric: "site_config_retry_count",
-            value: i + 1,
-            site,
-            attempts: i + 1,
-          },
-          "site_config became ready after retries"
-        );
+      const data = await callErp(env, log, ERP_METHOD.readSiteDbName, { site_name: site });
+      const dbName = parseDbNameFromErpPayload(data);
+      if (dbName) {
+        const waitMs = Date.now() - started;
+        if (i > 0) {
+          log.info(
+            {
+              metric: "site_config_retry_count",
+              value: i + 1,
+              site,
+              attempts: i + 1,
+            },
+            "read_site_db_name became ready after retries"
+          );
+        }
+        return { dbName, attempts: i + 1, waitMs };
       }
-      return { dbName, attempts: i + 1, waitMs };
-    } catch {
-      // retry
+    } catch (e) {
+      if (e instanceof ErpCallError) {
+        lastError = e;
+      } else {
+        throw e;
+      }
     }
+
     log.debug(
       {
         metric: "site_config_retry_count",
         attempt: i + 1,
         site,
       },
-      "site_config not ready yet"
+      "read_site_db_name not ready yet"
     );
-    await new Promise((r) => setTimeout(r, SITE_CONFIG_POLL_INTERVAL_MS));
+
+    if (i < SITE_CONFIG_POLL_MAX_ATTEMPTS - 1) {
+      await new Promise((r) => setTimeout(r, SITE_CONFIG_POLL_INTERVAL_MS));
+    }
   }
-  throw new Error("SITE_CONFIG_NOT_READY");
+
+  if (lastError) {
+    throw lastError;
+  }
+  throw new Error("SITE_DB_NAME_NOT_READY");
 }
 
 /**
@@ -162,7 +181,7 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
 
   private async runReadSiteDbName(site: string, log: Logger): Promise<LifecycleActionOutcome> {
     const started = Date.now();
-    const extracted = await this.extractDbNameFromSiteConfig(site, started, log);
+    const extracted = await this.resolveDbNameFromErp(site, started, log);
     if (!extracted.ok) {
       return { ok: false, failure: extracted.failure };
     }
@@ -179,88 +198,66 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
   }
 
   /**
-   * Reads `sites/<slug>/site_config.json` and returns `db_name` (filesystem + JSON parse only; no shell).
+   * Resolves Frappe `db_name` via ERP HTTP API only.
    */
-  private async extractDbNameFromSiteConfig(
+  private async resolveDbNameFromErp(
     site: string,
     startedAt: number,
     log: Logger
   ): Promise<{ ok: true; dbName: string } | { ok: false; failure: RemoteExecutionFailure }> {
-    let read: ReadSiteDbNameResult;
+    let dbName: string;
     let siteConfigWaitMs = 0;
 
     try {
-      const polled = await waitForSiteConfig(this.env.ERP_BENCH_PATH, site, log);
-      const unexpectedDbNameFormat = isUnexpectedDbNameFormat(polled.dbName);
-      read = { ok: true, dbName: polled.dbName, unexpectedDbNameFormat };
+      const polled = await pollReadSiteDbName(this.env, log, site);
+      dbName = polled.dbName;
       siteConfigWaitMs = polled.waitMs;
       if (polled.attempts > 1) {
         log.info(
           { site, metric: "site_config_retry_count", value: polled.attempts },
-          "site_config polling completed"
+          "read_site_db_name polling completed"
         );
       }
     } catch (e) {
-      if (e instanceof Error && e.message === "SITE_CONFIG_NOT_READY") {
+      if (e instanceof Error && e.message === "SITE_DB_NAME_NOT_READY") {
         log.error(
           { site, metric: "provisioning_dbname_missing", value: 1 },
-          "site_config.json not ready after retries"
+          "db_name not available from ERP after retries"
         );
         return {
           ok: false,
           failure: {
             code: "ERP_PARTIAL_SUCCESS",
-            message: "site_config.json not ready after site operation",
+            message: "db_name not available from ERP after site operation",
             retryable: true,
-            details: "SITE_CONFIG_NOT_READY",
+            details: "SITE_DB_NAME_NOT_READY",
           },
         };
+      }
+      if (e instanceof ErpCallError) {
+        log.error(
+          { site, metric: "provisioning_dbname_missing", value: 1, kind: e.kind },
+          "read_site_db_name failed"
+        );
+        return { ok: false, failure: mapErpCallErrorToFailure(e) };
       }
       throw e;
     }
 
     const durationMs = Date.now() - startedAt;
 
-    if (read.unexpectedDbNameFormat) {
+    if (isUnexpectedDbNameFormat(dbName)) {
       log.warn(
-        { site, dbName: read.dbName, durationMs },
+        { site, dbName, durationMs },
         "db_name has unexpected shape (accepted; verify Frappe version compatibility)"
       );
     }
 
-    if (this.env.ERP_VALIDATE_DB_SCHEMA) {
-      const exists = await verifyMariaDbSchemaExists(
-        {
-          host: this.env.ERP_DB_HOST,
-          port: this.env.ERP_DB_PORT,
-          user: this.env.ERP_DB_READONLY_USER!,
-          password: this.env.ERP_DB_READONLY_PASSWORD!,
-        },
-        read.dbName,
-        log
-      );
-      if (!exists) {
-        log.error(
-          { site, dbName: read.dbName, durationMs, metric: "provisioning_dbname_missing", value: 1 },
-          "MariaDB schema missing for db_name"
-        );
-        return {
-          ok: false,
-          failure: {
-            code: "ERP_PARTIAL_SUCCESS",
-            message: "ERP database schema not found for site_config db_name",
-            retryable: true,
-            details: `information_schema.SCHEMATA has no SCHEMA_NAME=${read.dbName}`,
-          },
-        };
-      }
-    }
-
     log.info(
-      { site, dbName: read.dbName, durationMs, siteConfigWaitMs, metric: "dbName_extracted" },
-      "dbName extracted and validated"
+      { site, dbName, durationMs, siteConfigWaitMs, metric: "dbName_extracted" },
+      "dbName resolved from ERP"
     );
-    return { ok: true, dbName: read.dbName };
+    return { ok: true, dbName };
   }
 
   private async runSimpleErpCall(
@@ -316,7 +313,7 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
       log.debug({ action: "createSite", site: siteOut }, "create_site ERP payload accepted");
 
       const extractStarted = Date.now();
-      const extracted = await this.extractDbNameFromSiteConfig(siteOut, extractStarted, log);
+      const extracted = await this.resolveDbNameFromErp(siteOut, extractStarted, log);
       if (!extracted.ok) {
         return { ok: false, failure: extracted.failure };
       }
@@ -359,7 +356,7 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
       const failure = mapErpCallErrorToFailure(e);
       if (failure.code === "SITE_ALREADY_EXISTS") {
         const extractStarted = Date.now();
-        const extracted = await this.extractDbNameFromSiteConfig(site, extractStarted, log);
+        const extracted = await this.resolveDbNameFromErp(site, extractStarted, log);
         if (extracted.ok === true) {
           const durationMs = Date.now() - started;
           log.info(
@@ -370,7 +367,7 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
               durationMs,
               metric: "dbName_persisted",
             },
-            "createSite idempotent: dbName extracted from existing site"
+            "createSite idempotent: dbName from existing site"
           );
           return {
             ok: true,

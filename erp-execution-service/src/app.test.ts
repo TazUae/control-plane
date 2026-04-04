@@ -14,7 +14,6 @@ function testEnv() {
     ERP_REMOTE_TOKEN: "test-token-16chars-min",
     ERP_BASE_URL: "http://127.0.0.1:59999",
     ERP_ADMIN_PASSWORD: "password12",
-    ERP_BENCH_PATH: "/tmp",
     ERP_COMMAND_TIMEOUT_MS: "5000",
   });
 }

@@ -17,7 +17,6 @@ services:
       ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:-axiserp-erpnext-pnzjyk-backend-1}
       ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:-change-me-erp-admin-password}
       ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN:-erp.local}
-      ERP_BENCH_PATH: ${ERP_BENCH_PATH:-/home/frappe/frappe-bench}
       LOG_LEVEL: info
     depends_on:
       control-plane-postgres:
@@ -55,7 +54,6 @@ services:
       ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME:-axiserp-erpnext-pnzjyk-backend-1}
       ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:-change-me-erp-admin-password}
       ERP_BASE_DOMAIN: ${ERP_BASE_DOMAIN:-erp.local}
-      ERP_BENCH_PATH: ${ERP_BENCH_PATH:-/home/frappe/frappe-bench}
       PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE: ${PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE:-false}
       LOG_LEVEL: info
     depends_on:

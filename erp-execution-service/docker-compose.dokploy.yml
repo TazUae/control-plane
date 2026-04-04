@@ -1,16 +1,11 @@
 # Dokploy / Docker Compose — erp-execution-service (internal HTTP only; no host port publish).
 #
 # Prerequisites:
-# - Mount the SAME three named Docker volumes as the ERPNext backend (logs, sites, assets paths below).
-#   They must already exist on the host (external). Do not replace the whole bench dir with one volume.
 # - Put ERP_REMOTE_TOKEN / ERP_ADMIN_PASSWORD / ERP_BASE_URL in your Dokploy env or a local .env file.
 # - `dokploy-network`: provisioning-agent / control-plane reach this service (e.g. http://erp-execution-service:8790).
 # - `axis-erp-internal`: same user-defined network as ERPNext stack so ERP_BASE_URL resolves to the backend.
-#   The Docker network name must exist on the host (from your ERPNext compose project).
 #
 # Build context: repository root (needs `packages/erp-utils`).
-#
-# Optional: match your ERP image exactly — ERP_RUNTIME_IMAGE=frappe/erpnext:v15.63.0
 
 name: erp-execution-service
 
@@ -19,28 +14,17 @@ services:
     build:
       context: ..
       dockerfile: erp-execution-service/Dockerfile
-      args:
-        ERP_RUNTIME_IMAGE: ${ERP_RUNTIME_IMAGE:-frappe/erpnext:v15}
     init: true
     restart: unless-stopped
-    user: frappe
-    working_dir: /home/frappe/frappe-bench
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-8790}
       ERP_REMOTE_TOKEN: ${ERP_REMOTE_TOKEN:?set ERP_REMOTE_TOKEN}
       ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:?set ERP_ADMIN_PASSWORD}
       ERP_BASE_URL: ${ERP_BASE_URL:-http://axis-erp-backend:8000}
-      ERP_DB_READONLY_USER: ${ERP_DB_READONLY_USER:-erp_readonly}
-      ERP_DB_READONLY_PASSWORD: ${ERP_DB_READONLY_PASSWORD:-change-me-erp-readonly-password}
-      ERP_BENCH_PATH: ${ERP_BENCH_PATH:-/home/frappe/frappe-bench}
       ERP_COMMAND_TIMEOUT_MS: ${ERP_COMMAND_TIMEOUT_MS:-120000}
     expose:
       - "${PORT:-8790}"
-    volumes:
-      - erp_bench_logs:/home/frappe/frappe-bench/logs
-      - erp_bench_sites:/home/frappe/frappe-bench/sites
-      - erp_bench_assets:/home/frappe/frappe-bench/sites/assets
     networks:
       - dokploy-network
       - axis-erp-internal
@@ -51,14 +35,3 @@ networks:
   axis-erp-internal:
     name: axiserp-erpnext-pnzjyk_axis-erp-internal
     external: true
-
-volumes:
-  erp_bench_logs:
-    external: true
-    name: bb0db3b5bea44bf012e2a12c1f7ab773d64ae98364aba1ded524daf1e2d1eb95
-  erp_bench_sites:
-    external: true
-    name: axiserp-erpnext-pnzjyk_sites
-  erp_bench_assets:
-    external: true
-    name: 1cf03dcd3eb339414cd3f225307712c662b759f3ab9e194375f56535b4f08a4e
