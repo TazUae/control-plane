@@ -249,7 +249,7 @@ test("POST /v1/erp/lifecycle maps adapter failure with INFRA_UNAVAILABLE", async
         ok: false,
         failure: {
           code: "INFRA_UNAVAILABLE",
-          message: "missing bench",
+          message: "remote unavailable",
           retryable: true,
         },
       };
