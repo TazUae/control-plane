@@ -1,8 +1,8 @@
 # Dokploy / Docker Compose — erp-execution-service (internal HTTP only; no host port publish).
 #
 # Prerequisites:
-# - Set ERP_BENCH_DOCKER_VOLUME to the SAME Docker volume (or use a bind mount) that backs
-#   `/home/frappe/frappe-bench` on your ERPNext backend so `bench` and `sites/` exist.
+# - Mount the SAME three named Docker volumes as the ERPNext backend (logs, sites, assets paths below).
+#   They must already exist on the host (external). Do not replace the whole bench dir with one volume.
 # - Put ERP_REMOTE_TOKEN / ERP_ADMIN_PASSWORD / ERP_DB_ROOT_PASSWORD in your Dokploy env or a local .env file.
 # - `dokploy-network`: provisioning-agent / control-plane reach this service (e.g. http://erp-execution-service:8790).
 # - `axis-erp-internal`: same user-defined network as ERPNext stack so `bench` resolves `db`, `redis-cache`, `redis-queue`.
@@ -37,7 +37,9 @@ services:
     expose:
       - "${PORT:-8790}"
     volumes:
-      - ${ERP_BENCH_DOCKER_VOLUME:?set ERP_BENCH_DOCKER_VOLUME to your bench/sites volume name}:/home/frappe/frappe-bench
+      - erp_bench_logs:/home/frappe/frappe-bench/logs
+      - erp_bench_sites:/home/frappe/frappe-bench/sites
+      - erp_bench_assets:/home/frappe/frappe-bench/sites/assets
     networks:
       - dokploy-network
       - axis-erp-internal
@@ -48,3 +50,14 @@ networks:
   axis-erp-internal:
     name: axiserp-erpnext-pnzjyk_axis-erp-internal
     external: true
+
+volumes:
+  erp_bench_logs:
+    external: true
+    name: bb0db3b5bea44bf012e2a12c1f7ab773d64ae98364aba1ded524daf1e2d1eb95
+  erp_bench_sites:
+    external: true
+    name: axiserp-erpnext-pnzjyk_sites
+  erp_bench_assets:
+    external: true
+    name: 1cf03dcd3eb339414cd3f225307712c662b759f3ab9e194375f56535b4f08a4e
