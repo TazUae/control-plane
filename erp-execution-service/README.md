@@ -7,7 +7,7 @@ Internal-only Node.js service that exposes a **narrow, typed** HTTP API for appr
 - **Allowlisted actions only** (`createSite`, `installErp`, `enableScheduler`, `addDomain`, `createApiUser`, `healthCheck`).
 - **Bearer authentication** using `ERP_REMOTE_TOKEN` (same secret configured on the provisioning-agent caller).
 - **Structured responses** aligned with `provisioning-agent` `remote-contract.ts` (`ok` / `data` or `ok` / `error`).
-- **No** arbitrary shell, generic command runner, unrestricted bench passthrough, Docker control, or host control APIs.
+- **No** arbitrary shell, generic command runner, bench subprocesses, Docker control, or host control APIs — lifecycle calls are **HTTP POSTs** to ERPNext (`ERP_BASE_URL`).
 
 ## Endpoints
 
@@ -34,12 +34,11 @@ npm test
 
 | Variable | Description |
 |----------|-------------|
-| `ERP_REMOTE_TOKEN` | Bearer token (min 16 chars) shared with provisioning-agent |
-| `ERP_ADMIN_PASSWORD` | Admin password for `bench new-site --admin-password` (same as ERP stack) |
-| `ERP_DB_ROOT_PASSWORD` | MariaDB/MySQL root password for `bench new-site --db-root-password` (non-interactive) |
-| `ERP_BENCH_PATH` | Bench directory (default `/home/frappe/frappe-bench`) |
-| `ERP_BENCH_EXECUTABLE` | Bench binary name (default `bench`) |
-| `ERP_COMMAND_TIMEOUT_MS` | Per-action timeout (default `120000`) |
+| `ERP_REMOTE_TOKEN` | Bearer token (min 16 chars) shared with provisioning-agent and sent to ERPNext |
+| `ERP_BASE_URL` | ERPNext base URL (e.g. `http://axis-erp-backend:8000`) |
+| `ERP_ADMIN_PASSWORD` | Admin password passed to `frappe.api.provisioning.create_site` |
+| `ERP_BENCH_PATH` | Path to bench `sites/` volume for `readSiteDbName` (default `/home/frappe/frappe-bench`) |
+| `ERP_COMMAND_TIMEOUT_MS` | Per-action HTTP timeout (default `120000`) |
 | `PORT` | Listen port (default `8790`) |
 | `NODE_ENV` | `development` \| `test` \| `production` |
 

@@ -3,9 +3,8 @@
 # Build from repository root so `packages/erp-utils` resolves for `file:../packages/erp-utils`:
 #   docker build -f erp-execution-service/Dockerfile .
 #
-# Runtime aligns with ERPNext/Frappe: same image family as backend, user `frappe`,
-# cwd `/home/frappe/frappe-bench`, `bench` on PATH. Mount your real bench/sites volume
-# at `/home/frappe/frappe-bench` (same as your ERPNext backend/worker).
+# Runtime: Node on the Frappe image family keeps UID/volume parity with ERPNext when mounting
+# `sites/` for `readSiteDbName`. Lifecycle actions use HTTP to ERPNext (`ERP_BASE_URL`), not bench.
 #
 # Build-time override: docker build --build-arg ERP_RUNTIME_IMAGE=frappe/erpnext:v15.63.0 .
 

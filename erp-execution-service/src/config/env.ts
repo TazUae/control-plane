@@ -5,13 +5,12 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8790),
   /** Shared secret with provisioning-agent RemoteErpBackend (Bearer). */
   ERP_REMOTE_TOKEN: z.string().trim().min(16),
+  /** ERPNext base URL (e.g. http://axis-erp-backend:8000). */
+  ERP_BASE_URL: z.string().trim().url(),
   ERP_ADMIN_PASSWORD: z.string().min(8),
-  /** MariaDB/MySQL root password for `bench new-site --db-root-password` (non-interactive). */
-  ERP_DB_ROOT_PASSWORD: z.string().trim().min(1),
   ERP_BENCH_PATH: z.string().min(1).default("/home/frappe/frappe-bench"),
-  ERP_BENCH_EXECUTABLE: z.string().min(1).default("bench"),
   ERP_COMMAND_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(120_000),
-  /** MariaDB host from erp-execution-service (same network as `bench new-site --db-host`). */
+  /** MariaDB host for optional `information_schema` validation after reading site_config. */
   ERP_DB_HOST: z.string().trim().min(1).default("db"),
   ERP_DB_PORT: z.coerce.number().int().min(1).max(65535).default(3306),
   ERP_DB_ROOT_USER: z.string().trim().min(1).default("root"),

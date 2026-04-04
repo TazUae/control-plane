@@ -3,11 +3,11 @@ import path from "node:path";
 import { ZodError } from "zod";
 import { isUnexpectedDbNameFormat, parseSiteConfig } from "erp-utils";
 import type { Env } from "../../config/env.js";
-import { execArgv, type InternalExecError } from "../../lib/exec.js";
+import { callErp, ErpCallError } from "../../lib/call-erp.js";
 import type { RemoteExecuteRequest } from "../../contracts/lifecycle.js";
 import type { RemoteExecutionFailure } from "../../contracts/lifecycle.js";
 import { validateDomain, validateSite, validateUsername } from "./validation.js";
-import { mapExecErrorToFailure } from "./result-mapper.js";
+import { mapErpCallErrorToFailure } from "./result-mapper.js";
 import type { Logger } from "pino";
 import type { ReadSiteDbNameResult } from "./site-config.js";
 import { verifyMariaDbSchemaExists } from "./mariadb-schema-validator.js";
@@ -26,15 +26,17 @@ export type LifecycleAdapter = {
   run(request: RemoteExecuteRequest): Promise<LifecycleActionOutcome>;
 };
 
-type AllowedProvisioningAction =
-  | "createSite"
-  | "installErp"
-  | "enableScheduler"
-  | "addDomain"
-  | "createApiUser";
-
 const SITE_CONFIG_POLL_MAX_ATTEMPTS = 5;
 const SITE_CONFIG_POLL_INTERVAL_MS = 1000;
+
+const ERP_METHOD = {
+  createSite: "/api/method/frappe.api.provisioning.create_site",
+  installErp: "/api/method/frappe.api.provisioning.install_erp",
+  enableScheduler: "/api/method/frappe.api.provisioning.enable_scheduler",
+  addDomain: "/api/method/frappe.api.provisioning.add_domain",
+  createApiUser: "/api/method/frappe.api.provisioning.create_api_user",
+  healthPing: "/api/method/frappe.ping",
+} as const;
 
 /**
  * Polls until `site_config.json` exists and contains `db_name` (no fixed delay).
@@ -81,8 +83,7 @@ async function waitForSiteConfig(
 }
 
 /**
- * Narrow bench execution: only allowlisted argv sequences; no shell, no passthrough.
- * Raw stdout/stderr are never returned to callers — use logger for diagnostics.
+ * HTTP-only ERP lifecycle: allowlisted POSTs to Frappe methods; no bench or subprocesses.
  */
 export class ErpExecutionAdapter implements LifecycleAdapter {
   constructor(
@@ -95,23 +96,43 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
     try {
       switch (request.action) {
         case "createSite":
-          return await this.runBenchAction("createSite", { site: validateSite(request.payload.site) }, log);
+          return await this.runCreateSite(validateSite(request.payload.site), log);
         case "readSiteDbName":
           return await this.runReadSiteDbName(validateSite(request.payload.site), log);
         case "installErp":
-          return await this.runBenchAction("installErp", { site: validateSite(request.payload.site) }, log);
+          return await this.runSimpleErpCall(
+            "installErp",
+            ERP_METHOD.installErp,
+            { site_name: validateSite(request.payload.site) },
+            log
+          );
         case "enableScheduler":
-          return await this.runBenchAction("enableScheduler", { site: validateSite(request.payload.site) }, log);
+          return await this.runSimpleErpCall(
+            "enableScheduler",
+            ERP_METHOD.enableScheduler,
+            { site_name: validateSite(request.payload.site) },
+            log
+          );
         case "addDomain":
-          return await this.runBenchAction("addDomain", {
-            site: validateSite(request.payload.site),
-            domain: validateDomain(request.payload.domain),
-          }, log);
+          return await this.runSimpleErpCall(
+            "addDomain",
+            ERP_METHOD.addDomain,
+            {
+              site_name: validateSite(request.payload.site),
+              domain: validateDomain(request.payload.domain),
+            },
+            log
+          );
         case "createApiUser":
-          return await this.runBenchAction("createApiUser", {
-            site: validateSite(request.payload.site),
-            apiUsername: validateUsername(request.payload.apiUsername),
-          }, log);
+          return await this.runSimpleErpCall(
+            "createApiUser",
+            ERP_METHOD.createApiUser,
+            {
+              site_name: validateSite(request.payload.site),
+              api_username: validateUsername(request.payload.apiUsername),
+            },
+            log
+          );
         case "healthCheck":
           return await this.runHealthCheck(request.payload.deep === true, log);
         default: {
@@ -137,66 +158,6 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
 
   private childLog(requestId?: string): Logger {
     return requestId ? this.logger.child({ requestId }) : this.logger;
-  }
-
-  private buildBenchArgs(
-    action: AllowedProvisioningAction,
-    input: { site: string; domain?: string; apiUsername?: string }
-  ): string[] {
-    const site = input.site;
-
-    switch (action) {
-      case "createSite":
-        return [
-          "new-site",
-          site,
-          "--db-root-password",
-          this.env.ERP_DB_ROOT_PASSWORD,
-          "--admin-password",
-          this.env.ERP_ADMIN_PASSWORD,
-          "--db-host",
-          "db",
-          "--db-type",
-          "mariadb",
-          "--no-mariadb-socket",
-        ];
-      case "installErp":
-        return ["--site", site, "install-app", "erpnext"];
-      case "enableScheduler":
-        return ["--site", site, "enable-scheduler"];
-      case "addDomain": {
-        const domain = input.domain;
-        if (!domain) {
-          throw new Error("domain is required for addDomain");
-        }
-        return [
-          "--site",
-          site,
-          "execute",
-          "frappe.api.provisioning.add_domain",
-          "--args",
-          `["${site}","${domain}"]`,
-        ];
-      }
-      case "createApiUser": {
-        const apiUsername = input.apiUsername;
-        if (!apiUsername) {
-          throw new Error("apiUsername is required for createApiUser");
-        }
-        return [
-          "--site",
-          site,
-          "execute",
-          "frappe.api.provisioning.create_api_user",
-          "--args",
-          `["${site}","${apiUsername}"]`,
-        ];
-      }
-      default: {
-        const _never: never = action;
-        return _never;
-      }
-    }
   }
 
   private async runReadSiteDbName(site: string, log: Logger): Promise<LifecycleActionOutcome> {
@@ -302,72 +263,70 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
     return { ok: true, dbName: read.dbName };
   }
 
-  private async runBenchAction(
-    action: AllowedProvisioningAction,
-    input: { site: string; domain?: string; apiUsername?: string },
+  private async runSimpleErpCall(
+    action: string,
+    endpoint: string,
+    payload: Record<string, string>,
     log: Logger
   ): Promise<LifecycleActionOutcome> {
-    const site = input.site;
-
-    if (action === "createSite") {
-      const dbRootPassword = this.env.ERP_DB_ROOT_PASSWORD;
-      if (!dbRootPassword || dbRootPassword.trim() === "") {
-        throw new Error("ERP_DB_ROOT_PASSWORD is required for ERP site provisioning");
+    const started = Date.now();
+    try {
+      await callErp(this.env, log, endpoint, payload);
+      const durationMs = Date.now() - started;
+      log.debug({ action, durationMs }, "ERP lifecycle action completed");
+      return { ok: true, durationMs };
+    } catch (e) {
+      if (!(e instanceof ErpCallError)) {
+        throw e;
       }
-      log.debug(
-        { erpDbRootPasswordPresent: true },
-        "erp createSite: ERP_DB_ROOT_PASSWORD is set (value not logged)"
+      log.warn(
+        {
+          action,
+          kind: e.kind,
+          status: e.options.status,
+          message: e.message,
+        },
+        "ERP HTTP action failed"
       );
+      return { ok: false, failure: mapErpCallErrorToFailure(e) };
     }
-
-    const args = this.buildBenchArgs(action, input);
-
-    if (action !== "createSite") {
-      try {
-        const result = await execArgv(this.env.ERP_BENCH_EXECUTABLE, args, {
-          cwd: this.env.ERP_BENCH_PATH,
-          timeoutMs: this.env.ERP_COMMAND_TIMEOUT_MS,
-        });
-        log.debug({ action, durationMs: result.durationMs }, "bench action completed");
-        return { ok: true, durationMs: result.durationMs };
-      } catch (error) {
-        const execError = error as InternalExecError;
-        log.warn(
-          {
-            action,
-            kind: execError.kind,
-            durationMs: execError.durationMs,
-            stderr: execError.stderr,
-          },
-          "bench action failed"
-        );
-        return { ok: false, failure: mapExecErrorToFailure(execError) };
-      }
-    }
-
-    return await this.runCreateSiteWithDbNameCapture(site, args, log);
   }
 
-  private async runCreateSiteWithDbNameCapture(site: string, args: string[], log: Logger): Promise<LifecycleActionOutcome> {
+  private async runCreateSite(site: string, log: Logger): Promise<LifecycleActionOutcome> {
+    const started = Date.now();
     try {
-      const result = await execArgv(this.env.ERP_BENCH_EXECUTABLE, args, {
-        cwd: this.env.ERP_BENCH_PATH,
-        timeoutMs: this.env.ERP_COMMAND_TIMEOUT_MS,
+      const data = await callErp(this.env, log, ERP_METHOD.createSite, {
+        site_name: site,
+        admin_password: this.env.ERP_ADMIN_PASSWORD,
       });
-      log.debug({ action: "createSite", durationMs: result.durationMs }, "bench new-site completed");
+
+      const ok = data.ok === true || data.ok === undefined;
+      const siteOut = typeof data.site === "string" ? data.site : site;
+      if (!ok) {
+        return {
+          ok: false,
+          failure: {
+            code: "ERP_COMMAND_FAILED",
+            message: String(data.error ?? "ERP create_site failed"),
+            retryable: false,
+          },
+        };
+      }
+
+      log.debug({ action: "createSite", site: siteOut }, "create_site ERP payload accepted");
 
       const extractStarted = Date.now();
-      const extracted = await this.extractDbNameFromSiteConfig(site, extractStarted, log);
+      const extracted = await this.extractDbNameFromSiteConfig(siteOut, extractStarted, log);
       if (!extracted.ok) {
         return { ok: false, failure: extracted.failure };
       }
 
-      const durationMs = result.durationMs + (Date.now() - extractStarted);
-      const createSiteResult: CreateSiteResult = { success: true, site, dbName: extracted.dbName };
+      const durationMs = Date.now() - started;
+      const createSiteResult: CreateSiteResult = { success: true, site: siteOut, dbName: extracted.dbName };
 
       log.info(
         {
-          site,
+          site: createSiteResult.site,
           dbName: createSiteResult.dbName,
           metric: "dbName_persisted",
           durationMs,
@@ -383,24 +342,26 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
           dbName: createSiteResult.dbName,
         },
       };
-    } catch (error) {
-      const execError = error as InternalExecError;
+    } catch (e) {
+      if (!(e instanceof ErpCallError)) {
+        throw e;
+      }
       log.warn(
         {
           action: "createSite",
-          kind: execError.kind,
-          durationMs: execError.durationMs,
-          stderr: execError.stderr,
+          kind: e.kind,
+          status: e.options.status,
+          message: e.message,
         },
-        "bench action failed"
+        "ERP HTTP action failed"
       );
 
-      const failure = mapExecErrorToFailure(execError);
+      const failure = mapErpCallErrorToFailure(e);
       if (failure.code === "SITE_ALREADY_EXISTS") {
         const extractStarted = Date.now();
         const extracted = await this.extractDbNameFromSiteConfig(site, extractStarted, log);
         if (extracted.ok === true) {
-          const durationMs = execError.durationMs + (Date.now() - extractStarted);
+          const durationMs = Date.now() - started;
           log.info(
             {
               site,
@@ -430,23 +391,19 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
   private async runHealthCheck(deep: boolean, log: Logger): Promise<LifecycleActionOutcome> {
     const startedAt = Date.now();
     try {
-      await execArgv(this.env.ERP_BENCH_EXECUTABLE, ["--version"], {
-        cwd: this.env.ERP_BENCH_PATH,
-        timeoutMs: this.env.ERP_COMMAND_TIMEOUT_MS,
-      });
+      await callErp(this.env, log, ERP_METHOD.healthPing, {});
       const durationMs = Date.now() - startedAt;
       const metadata: Record<string, string | number | boolean> = { status: "ok" };
       if (deep) {
         metadata.deep = true;
       }
       return { ok: true, durationMs, metadata };
-    } catch (error) {
-      const execError = error as InternalExecError;
-      log.warn(
-        { kind: execError.kind, stderr: execError.stderr },
-        "health check failed"
-      );
-      return { ok: false, failure: mapExecErrorToFailure(execError) };
+    } catch (e) {
+      if (!(e instanceof ErpCallError)) {
+        throw e;
+      }
+      log.warn({ kind: e.kind, message: e.message }, "health check failed");
+      return { ok: false, failure: mapErpCallErrorToFailure(e) };
     }
   }
 }
