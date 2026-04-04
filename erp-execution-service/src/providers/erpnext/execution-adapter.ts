@@ -89,7 +89,7 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
           "new-site",
           site,
           "--db-root-password",
-          this.env.DB_ROOT_PASSWORD,
+          this.env.ERP_DB_ROOT_PASSWORD,
           "--admin-password",
           this.env.ERP_ADMIN_PASSWORD,
           "--db-host",
@@ -142,13 +142,13 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
     input: { site: string; domain?: string; apiUsername?: string }
   ): Promise<LifecycleActionOutcome> {
     if (action === "createSite") {
-      const dbRootPassword = this.env.DB_ROOT_PASSWORD;
+      const dbRootPassword = this.env.ERP_DB_ROOT_PASSWORD;
       if (!dbRootPassword || dbRootPassword.trim() === "") {
-        throw new Error("DB_ROOT_PASSWORD is required for ERP site provisioning");
+        throw new Error("ERP_DB_ROOT_PASSWORD is required for ERP site provisioning");
       }
       this.logger.debug(
-        { dbRootPasswordPresent: true },
-        "erp createSite: DB_ROOT_PASSWORD is set (value not logged)"
+        { erpDbRootPasswordPresent: true },
+        "erp createSite: ERP_DB_ROOT_PASSWORD is set (value not logged)"
       );
       await new Promise((r) => setTimeout(r, CREATE_SITE_DELAY_MS));
     }
