@@ -22,6 +22,9 @@ type AllowedProvisioningAction =
   | "addDomain"
   | "createApiUser";
 
+/** Delay before `bench new-site` so DB DNS/network is ready; avoids partial site dir without DB. */
+const CREATE_SITE_DELAY_MS = 5000;
+
 /**
  * Narrow bench execution: only allowlisted argv sequences; no shell, no passthrough.
  * Raw stdout/stderr are never returned to callers — use logger for diagnostics.
@@ -85,12 +88,13 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
         return [
           "new-site",
           site,
-          "--admin-password",
-          this.env.ERP_ADMIN_PASSWORD,
-          "--db-type",
-          "mariadb",
           "--db-root-password",
           this.env.ERP_DB_ROOT_PASSWORD,
+          "--admin-password",
+          this.env.ERP_ADMIN_PASSWORD,
+          "--db-host",
+          "db",
+          "--no-mariadb-socket",
         ];
       case "installErp":
         return ["--site", site, "install-app", "erpnext"];
@@ -137,6 +141,9 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
   ): Promise<LifecycleActionOutcome> {
     const args = this.buildBenchArgs(action, input);
     try {
+      if (action === "createSite") {
+        await new Promise((r) => setTimeout(r, CREATE_SITE_DELAY_MS));
+      }
       const result = await execArgv(this.env.ERP_BENCH_EXECUTABLE, args, {
         cwd: this.env.ERP_BENCH_PATH,
         timeoutMs: this.env.ERP_COMMAND_TIMEOUT_MS,
@@ -145,7 +152,11 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
         { action, durationMs: result.durationMs },
         "bench action completed"
       );
-      return { ok: true, durationMs: result.durationMs };
+      const durationMs =
+        action === "createSite"
+          ? result.durationMs + CREATE_SITE_DELAY_MS
+          : result.durationMs;
+      return { ok: true, durationMs };
     } catch (error) {
       const execError = error as InternalExecError;
       this.logger.warn(
