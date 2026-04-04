@@ -37,6 +37,9 @@ RUN install -d -o frappe -g frappe /opt/erp-execution-service
 COPY --from=nodebinary /usr/local/bin/node /usr/local/bin/node
 
 COPY --from=builder --chown=frappe:frappe /build/erp-execution-service/package.json /build/erp-execution-service/package-lock.json /opt/erp-execution-service/
+# `erp-utils` is `file:../packages/erp-utils`; npm links node_modules/erp-utils -> ../../packages/erp-utils.
+# Without this copy, the symlink points at a path that does not exist in the runtime image.
+COPY --from=builder --chown=frappe:frappe /build/packages/erp-utils /opt/packages/erp-utils
 COPY --from=builder --chown=frappe:frappe /build/erp-execution-service/node_modules /opt/erp-execution-service/node_modules
 COPY --from=builder --chown=frappe:frappe /build/erp-execution-service/dist /opt/erp-execution-service/dist
 
