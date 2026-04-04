@@ -89,11 +89,13 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
           "new-site",
           site,
           "--db-root-password",
-          this.env.ERP_DB_ROOT_PASSWORD,
+          this.env.DB_ROOT_PASSWORD,
           "--admin-password",
           this.env.ERP_ADMIN_PASSWORD,
           "--db-host",
           "db",
+          "--db-type",
+          "mariadb",
           "--no-mariadb-socket",
         ];
       case "installErp":
@@ -139,11 +141,19 @@ export class ErpExecutionAdapter implements LifecycleAdapter {
     action: AllowedProvisioningAction,
     input: { site: string; domain?: string; apiUsername?: string }
   ): Promise<LifecycleActionOutcome> {
+    if (action === "createSite") {
+      const dbRootPassword = this.env.DB_ROOT_PASSWORD;
+      if (!dbRootPassword || dbRootPassword.trim() === "") {
+        throw new Error("DB_ROOT_PASSWORD is required for ERP site provisioning");
+      }
+      this.logger.debug(
+        { dbRootPasswordPresent: true },
+        "erp createSite: DB_ROOT_PASSWORD is set (value not logged)"
+      );
+      await new Promise((r) => setTimeout(r, CREATE_SITE_DELAY_MS));
+    }
     const args = this.buildBenchArgs(action, input);
     try {
-      if (action === "createSite") {
-        await new Promise((r) => setTimeout(r, CREATE_SITE_DELAY_MS));
-      }
       const result = await execArgv(this.env.ERP_BENCH_EXECUTABLE, args, {
         cwd: this.env.ERP_BENCH_PATH,
         timeoutMs: this.env.ERP_COMMAND_TIMEOUT_MS,

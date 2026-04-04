@@ -36,7 +36,7 @@ npm test
 |----------|-------------|
 | `ERP_REMOTE_TOKEN` | Bearer token (min 16 chars) shared with provisioning-agent |
 | `ERP_ADMIN_PASSWORD` | Admin password for `bench new-site --admin-password` (same as ERP stack) |
-| `ERP_DB_ROOT_PASSWORD` | MariaDB/MySQL root password for `bench new-site --db-root-password` (non-interactive) |
+| `DB_ROOT_PASSWORD` | MariaDB/MySQL root password for `bench new-site --db-root-password` (non-interactive) |
 | `ERP_BENCH_PATH` | Bench directory (default `/home/frappe/frappe-bench`) |
 | `ERP_BENCH_EXECUTABLE` | Bench binary name (default `bench`) |
 | `ERP_COMMAND_TIMEOUT_MS` | Per-action timeout (default `120000`) |
