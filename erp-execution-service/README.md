@@ -51,11 +51,11 @@ ERPNext must implement `frappe.api.provisioning.read_site_db_name` (used for `re
 
 ### Docker / Dokploy
 
-- This repo is **standalone**: clone root contains `Dockerfile` and **`docker-compose.yml`** (required for Dokploy compose deployments).
-- Build: `docker build -t erp-execution-service .` from the repo root.
-- Compose uses **`env_file: - .env`** (no inline `environment:` block). Copy **`.env.example`** to `.env` and adjust values, or let Dokploy set the same variable names on the host so Compose still resolves `${PORT}` for port mapping.
-- **If Dokploy reports “Compose file not found”:** in the compose app settings, set **Compose file path** to `docker-compose.yml` (repo root). If your Dokploy version clones into a subfolder, try `code/docker-compose.yml` instead. Ensure the **branch** is `main` and redeploy after pushing.
-- Identical stacks also exist as `compose.yml`, `compose.yaml`, and `docker-compose.yaml` for tooling that prefers those names.
+- This package has its own **`Dockerfile`** at `erp-execution-service/Dockerfile` (build context is this directory).
+- **Local:** copy **`.env.example`** to **`.env`** (gitignored). Compose files use `env_file` with `${ENV_FILE:-.env}` so you can point at the example for validation: `ENV_FILE=.env.example docker compose config`.
+- **Production:** use **`docker-compose.dokploy.yml`**. Runtime values come from **Dokploy env** (explicit `environment:` entries — no `env_file`). Set the **Compose file path** in Dokploy to `erp-execution-service/docker-compose.dokploy.yml`. After changing Dokploy env, **redeploy**.
+- **If Dokploy reports “Compose file not found”:** set **Compose file path** to `erp-execution-service/docker-compose.dokploy.yml`. If your Dokploy version clones into a subfolder, adjust the prefix (e.g. `code/erp-execution-service/docker-compose.dokploy.yml`). Ensure the **branch** is correct and redeploy after pushing.
+- Identical **local** stacks also exist as `compose.yml`, `compose.yaml`, and `docker-compose.yaml` for tooling that prefers those names.
 
 ## Documentation
 

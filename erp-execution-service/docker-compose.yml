@@ -1,4 +1,5 @@
-# All runtime configuration comes from `.env` (see `.env.example`).
+# Local development: copy `.env.example` to `.env` (gitignored). Override path with ENV_FILE if needed.
+# Production / Dokploy: use `docker-compose.dokploy.yml` — Dokploy env is the source of truth (see README).
 
 services:
   erp-execution-service:
@@ -6,5 +7,5 @@ services:
     ports:
       - "${PORT}:8790"
     env_file:
-      - .env
+      - ${ENV_FILE:-.env}
     restart: unless-stopped

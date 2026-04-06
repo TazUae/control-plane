@@ -4,7 +4,9 @@ tmp/
 *.log
 erp-worker/node_modules/
 erp-worker/*.log
-# .env is committed as a template; keep machine-specific and secret overlays ignored.
+
+# Local env (never commit). Copy from `.env.example` for development.
+.env
 .env.local
 .env.production
 .env.secrets

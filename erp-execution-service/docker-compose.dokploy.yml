@@ -1,4 +1,6 @@
-# Same as docker-compose.yml with external networks. Env vars come from `.env` only.
+# Production / Dokploy: runtime values come from the host environment (Dokploy project env).
+# Do not use env_file here — set every variable below in Dokploy for this service.
+# Local development: use docker-compose.yml (or compose.yml) with a gitignored `.env`.
 
 name: erp-execution-service
 
@@ -7,8 +9,13 @@ services:
     build: .
     init: true
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      ERP_REMOTE_TOKEN: ${ERP_REMOTE_TOKEN}
+      ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD}
+      ERP_BASE_URL: ${ERP_BASE_URL}
+      ERP_COMMAND_TIMEOUT_MS: ${ERP_COMMAND_TIMEOUT_MS}
     expose:
       - "${PORT}"
     networks:

@@ -1,5 +1,7 @@
-# Local development: copy `.env.example` to `.env` (gitignored). Override path with ENV_FILE if needed.
-# Production / Dokploy: use `docker-compose.dokploy.yml` — Dokploy env is the source of truth (see README).
+# Production / Dokploy: runtime values come from the host environment (Dokploy project env).
+# Do not use env_file here — set every variable below in Dokploy for this stack.
+# After changing Dokploy env, redeploy so containers pick up new values.
+# Local development: use docker-compose.yml with a gitignored .env (see README).
 
 services:
   control-plane-api:
@@ -9,8 +11,18 @@ services:
     command: sh -lc "npx prisma migrate deploy && npm run start:api"
     restart: unless-stopped
     init: true
-    env_file:
-      - ${ENV_FILE:-.env}
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY}
+      PROVISIONING_API_URL: ${PROVISIONING_API_URL}
+      PROVISIONING_API_TOKEN: ${PROVISIONING_API_TOKEN}
+      PROVISIONING_API_TIMEOUT_MS: ${PROVISIONING_API_TIMEOUT_MS}
+      PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE: ${PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE}
+      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME}
+      ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD}
     depends_on:
       control-plane-postgres:
         condition: service_healthy
@@ -37,8 +49,18 @@ services:
     command: sh -lc "npm run start:worker"
     restart: unless-stopped
     init: true
-    env_file:
-      - ${ENV_FILE:-.env}
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY}
+      PROVISIONING_API_URL: ${PROVISIONING_API_URL}
+      PROVISIONING_API_TOKEN: ${PROVISIONING_API_TOKEN}
+      PROVISIONING_API_TIMEOUT_MS: ${PROVISIONING_API_TIMEOUT_MS}
+      PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE: ${PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE}
+      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME}
+      ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD}
     depends_on:
       control-plane-postgres:
         condition: service_healthy
@@ -51,8 +73,10 @@ services:
   control-plane-postgres:
     image: postgres:16
     restart: unless-stopped
-    env_file:
-      - ${ENV_FILE:-.env}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - cp_pg_data:/var/lib/postgresql/data
     networks:
