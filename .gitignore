@@ -1,6 +1,10 @@
 node_modules/
 dist/
-.env
+tmp/
 *.log
 erp-worker/node_modules/
 erp-worker/*.log
+# .env is committed as a template; keep machine-specific and secret overlays ignored.
+.env.local
+.env.production
+.env.secrets

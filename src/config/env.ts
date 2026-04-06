@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { z } from "zod";
 
+/**
+ * Application env keys (see root `.env.example`).
+ * Postgres-only keys (`POSTGRES_*`) live in the same file for Docker Compose but are not read here.
+ */
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),

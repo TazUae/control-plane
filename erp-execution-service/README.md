@@ -37,8 +37,8 @@ npm test
 | `ERP_REMOTE_TOKEN` | Bearer token (min 16 chars) shared with provisioning-agent and sent to ERPNext |
 | `ERP_BASE_URL` | ERPNext base URL (e.g. `http://axis-erp-backend:8000`) |
 | `ERP_ADMIN_PASSWORD` | Admin password passed to `frappe.api.provisioning.create_site` |
-| `ERP_COMMAND_TIMEOUT_MS` | Per-action HTTP timeout (default `120000`) |
-| `PORT` | Listen port (default `8790`) |
+| `ERP_COMMAND_TIMEOUT_MS` | Per-action HTTP timeout (see `.env.example`) |
+| `PORT` | Listen port (must match Compose port mapping; see `.env.example`) |
 | `NODE_ENV` | `development` \| `test` \| `production` |
 
 ERPNext must implement `frappe.api.provisioning.read_site_db_name` (used for `readSiteDbName` and post-`createSite` `db_name` resolution).
@@ -53,7 +53,7 @@ ERPNext must implement `frappe.api.provisioning.read_site_db_name` (used for `re
 
 - This repo is **standalone**: clone root contains `Dockerfile` and **`docker-compose.yml`** (required for Dokploy compose deployments).
 - Build: `docker build -t erp-execution-service .` from the repo root.
-- Compose: `docker compose up -d --build` (set `ERP_REMOTE_TOKEN`, `ERP_ADMIN_PASSWORD`, `ERP_BASE_URL` in the environment or an `.env` file).
+- Compose uses **`env_file: - .env`** (no inline `environment:` block). Copy **`.env.example`** to `.env` and adjust values, or let Dokploy set the same variable names on the host so Compose still resolves `${PORT}` for port mapping.
 - **If Dokploy reports “Compose file not found”:** in the compose app settings, set **Compose file path** to `docker-compose.yml` (repo root). If your Dokploy version clones into a subfolder, try `code/docker-compose.yml` instead. Ensure the **branch** is `main` and redeploy after pushing.
 - Identical stacks also exist as `compose.yml`, `compose.yaml`, and `docker-compose.yaml` for tooling that prefers those names.
 

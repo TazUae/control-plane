@@ -4,12 +4,7 @@ services:
   erp-execution-service:
     build: .
     ports:
-      - "${PORT:-8790}:8790"
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-8790}
-      ERP_REMOTE_TOKEN: ${ERP_REMOTE_TOKEN}
-      ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD}
-      ERP_BASE_URL: ${ERP_BASE_URL}
-      ERP_COMMAND_TIMEOUT_MS: ${ERP_COMMAND_TIMEOUT_MS:-120000}
+      - "${PORT}:8790"
+    env_file:
+      - .env
     restart: unless-stopped

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-/** HTTP-only service: no `ERP_DB_ROOT_PASSWORD`, bench paths, or Docker runtime image env vars. */
+/**
+ * Keys must match `.env.example` in this package (see also `docker-compose.yml` `env_file`).
+ * HTTP-only service: no `ERP_DB_ROOT_PASSWORD`, bench paths, or Docker runtime image env vars.
+ */
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(8790),
