@@ -124,14 +124,18 @@ app.post(
 
       let queueJob: Awaited<ReturnType<typeof provisioningQueue.add>>;
       try {
-        queueJob = await provisioningQueue.add("provision", {
-          jobId: result.jobId,
-          tenantId: result.tenantId,
-          slug,
-          plan,
-          region,
-          requestId,
-        });
+        queueJob = await provisioningQueue.add(
+          "provision",
+          {
+            jobId: result.jobId,
+            tenantId: result.tenantId,
+            slug,
+            plan,
+            region,
+            requestId,
+          },
+          { attempts: 1 }
+        );
       } catch (enqueueError) {
         const message =
           enqueueError instanceof Error ? enqueueError.message : String(enqueueError);

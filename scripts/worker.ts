@@ -5,25 +5,32 @@ import { logger } from "../src/lib/logger.js";
 import { TENANT_PROVISIONING_QUEUE } from "../src/lib/constants.js";
 import { prisma } from "../src/lib/prisma.js";
 
+/** Long-running bench/HTTP steps; must exceed worst-case provisioning duration to avoid duplicate workers picking the same job. */
+const PROVISIONING_LOCK_DURATION_MS = 15 * 60 * 1000;
+/** How often workers check for stalled jobs; keep below lock duration and aligned with long jobs. */
+const PROVISIONING_STALLED_INTERVAL_MS = 2 * 60 * 1000;
+
 const worker = new Worker(
   TENANT_PROVISIONING_QUEUE,
   async (job) => {
     logger.info(
       {
-        queue: TENANT_PROVISIONING_QUEUE,
-        queueJobId: job.id,
-        provisioningJobId: job.data?.jobId,
+        jobId: job.data?.jobId,
         tenantId: job.data?.tenantId,
-        requestId: job.data?.requestId,
+        queueJobId: job.id,
       },
-      "Worker received job"
+      "Provisioning job execution started"
     );
     await runProvisioning(job.data.jobId, {
       queueJobId: job.id?.toString(),
       requestId: typeof job.data?.requestId === "string" ? job.data.requestId : undefined,
     });
   },
-  { connection: redis }
+  {
+    connection: redis,
+    lockDuration: PROVISIONING_LOCK_DURATION_MS,
+    stalledInterval: PROVISIONING_STALLED_INTERVAL_MS,
+  }
 );
 
 worker.on("ready", () => {
