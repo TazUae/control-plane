@@ -122,14 +122,43 @@ app.post(
         "Provisioning queue enqueue started"
       );
 
-      const queueJob = await provisioningQueue.add("provision", {
-        jobId: result.jobId,
-        tenantId: result.tenantId,
-        slug,
-        plan,
-        region,
-        requestId,
-      });
+      let queueJob: Awaited<ReturnType<typeof provisioningQueue.add>>;
+      try {
+        queueJob = await provisioningQueue.add("provision", {
+          jobId: result.jobId,
+          tenantId: result.tenantId,
+          slug,
+          plan,
+          region,
+          requestId,
+        });
+      } catch (enqueueError) {
+        const message =
+          enqueueError instanceof Error ? enqueueError.message : String(enqueueError);
+        logger.error(
+          {
+            err: enqueueError,
+            requestId,
+            provisioningJobId: result.jobId,
+            tenantId: result.tenantId,
+            slug,
+          },
+          `Provisioning queue enqueue failed: ${message}`
+        );
+        await prisma.provisioningJob.update({
+          where: { id: result.jobId },
+          data: {
+            status: "enqueue_failed",
+            failureReason: message,
+          },
+        });
+        return reply.code(503).send({
+          error: "Provisioning job could not be queued; the tenant was created and can be recovered manually",
+          tenantId: result.tenantId,
+          jobId: result.jobId,
+          status: "enqueue_failed",
+        });
+      }
 
       logger.info(
         {

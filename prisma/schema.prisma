@@ -24,6 +24,7 @@ enum ProvisioningStatus {
   running
   failed
   completed
+  enqueue_failed
 }
 
 //////////////////////////////////////////////////////
