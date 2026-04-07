@@ -285,6 +285,14 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
       },
     });
 
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: {
+        status: "active",
+        lastError: null,
+      },
+    });
+
   } catch (error) {
     const typedError = mapUnexpectedError(error);
     logger.error(
@@ -304,6 +312,14 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
       data: {
         status: "failed",
         failureReason: `${typedError.code}: ${typedError.message}`,
+      },
+    });
+
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: {
+        status: "failed",
+        lastError: error instanceof Error ? error.message : typedError.message,
       },
     });
 

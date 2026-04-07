@@ -16,6 +16,7 @@ enum TenantStatus {
   active
   suspended
   archived
+  failed
 }
 
 enum ProvisioningStatus {
@@ -35,6 +36,7 @@ model Tenant {
   status    TenantStatus
   erpSite   String?
   erpDbName String?
+  lastError String?
   plan      String
   region    String
   createdAt DateTime     @default(now())
