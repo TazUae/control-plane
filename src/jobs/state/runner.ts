@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { steps } from "./steps.js";
 import { logger } from "../../lib/logger.js";
@@ -103,12 +104,26 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
         try {
           logger.info(stepLog, "Provisioning step started");
 
-          await prisma.provisioningStepRun.create({
-            data: {
+          await prisma.provisioningStepRun.upsert({
+            where: { jobId_step: { jobId, step } },
+            create: {
+              id: crypto.randomUUID(),
               jobId,
               step,
               status: "running",
+              startedAt: new Date(),
             },
+            update: {
+              status: "running",
+              startedAt: new Date(),
+              finishedAt: null,
+              error: null,
+            },
+          });
+
+          await prisma.provisioningJob.update({
+            where: { id: jobId },
+            data: { currentStep: step },
           });
 
           if (step === "site_created") {
@@ -188,8 +203,8 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
             });
           }
 
-          await prisma.provisioningStepRun.updateMany({
-            where: { jobId, step },
+          await prisma.provisioningStepRun.update({
+            where: { jobId_step: { jobId, step } },
             data: {
               status: "completed",
               finishedAt: new Date(),
@@ -232,11 +247,6 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
           await new Promise((r) => setTimeout(r, 1000 * attempt));
         }
       }
-
-      await prisma.provisioningJob.update({
-        where: { id: jobId },
-        data: { currentStep: step },
-      });
     }
 
     const finalTenant = await prisma.tenant.findUnique({ where: { id: tenant.id } });

@@ -91,6 +91,8 @@ model ProvisioningStepRun {
   error      String?
 
   job ProvisioningJob @relation(fields: [jobId], references: [id])
+
+  @@unique([jobId, step])
 }
 
 //////////////////////////////////////////////////////
