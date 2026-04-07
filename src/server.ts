@@ -1,5 +1,6 @@
 import { app } from "./app.js";
 import "./modules/tenants/tenant.routes.js";
+import "./modules/jobs/job.routes.js";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { prisma } from "./lib/prisma.js";
