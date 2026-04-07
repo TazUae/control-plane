@@ -9,6 +9,8 @@ async function loadHttpAdapter() {
   process.env.REDIS_URL ??= "redis://127.0.0.1:6379";
   process.env.CONTROL_PLANE_API_KEY ??= "test-control-plane-api-key";
   process.env.ERP_ADMIN_PASSWORD ??= "test-admin-password";
+  process.env.PROVISIONING_API_URL ??= "https://provisioning.example.com";
+  process.env.PROVISIONING_API_TOKEN ??= "token-token-token-token";
   const module = await import("./http-adapter.js");
   return module.HttpProvisioningAdapter;
 }
@@ -16,8 +18,6 @@ async function loadHttpAdapter() {
 test("maps structured non-retryable remote failure into ProvisioningError", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   const adapter = new HttpProvisioningAdapter({
-    baseUrl: "https://provisioning.example.com",
-    token: "token-token-token-token",
     fetchFn: async () =>
       new Response(
         JSON.stringify({
@@ -50,8 +50,6 @@ test("maps structured non-retryable remote failure into ProvisioningError", asyn
 test("maps structured retryable remote failure into ProvisioningError", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   const adapter = new HttpProvisioningAdapter({
-    baseUrl: "https://provisioning.example.com",
-    token: "token-token-token-token",
     fetchFn: async () =>
       new Response(
         JSON.stringify({
@@ -84,8 +82,6 @@ test("maps structured retryable remote failure into ProvisioningError", async ()
 test("maps unstructured 5xx responses to INFRA_UNAVAILABLE", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   const adapter = new HttpProvisioningAdapter({
-    baseUrl: "https://provisioning.example.com",
-    token: "token-token-token-token",
     fetchFn: async () => new Response("upstream crashed", { status: 503 }),
   });
 
@@ -103,8 +99,6 @@ test("maps unstructured 5xx responses to INFRA_UNAVAILABLE", async () => {
 test("maps aborted request to ERP_TIMEOUT", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   const adapter = new HttpProvisioningAdapter({
-    baseUrl: "https://provisioning.example.com",
-    token: "token-token-token-token",
     timeoutMs: 20,
     fetchFn: async (_url, init) =>
       await new Promise<Response>((_resolve, reject) => {
@@ -131,8 +125,6 @@ test("maps aborted request to ERP_TIMEOUT", async () => {
 test("accepts idempotent already-done success payload", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   const adapter = new HttpProvisioningAdapter({
-    baseUrl: "https://provisioning.example.com",
-    token: "token-token-token-token",
     fetchFn: async () =>
       new Response(
         JSON.stringify({
@@ -162,8 +154,6 @@ test("accepts idempotent already-done success payload", async () => {
 test("maps dbName from createSite success payload", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   const adapter = new HttpProvisioningAdapter({
-    baseUrl: "https://provisioning.example.com",
-    token: "token-token-token-token",
     fetchFn: async () =>
       new Response(
         JSON.stringify({
@@ -191,8 +181,6 @@ test("resolveSiteDbName calls read-db-name endpoint", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   let calledPath = "";
   const adapter = new HttpProvisioningAdapter({
-    baseUrl: "https://provisioning.example.com",
-    token: "token-token-token-token",
     fetchFn: async (url) => {
       calledPath = new URL(url.toString()).pathname;
       return new Response(

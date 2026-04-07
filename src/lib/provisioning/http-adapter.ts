@@ -13,14 +13,11 @@ import { ProvisioningAdapter, ProvisioningCallContext, ProvisioningOperationResu
 
 type FetchLike = typeof fetch;
 
+/** Test-only overrides; production uses `PROVISIONING_API_URL` and related env keys only. */
 type HttpProvisioningAdapterOptions = {
-  baseUrl?: string;
-  token?: string;
   timeoutMs?: number;
   fetchFn?: FetchLike;
 };
-
-const DEFAULT_TIMEOUT_MS = 120_000;
 
 const SiteOperationSuccessEnvelopeSchema = SuccessEnvelopeSchema(SiteOperationResponseDataSchema);
 const HealthSuccessEnvelopeSchema = SuccessEnvelopeSchema(HealthResponseDataSchema);
@@ -33,21 +30,10 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
   private readonly fetchFn: FetchLike;
 
   constructor(options: HttpProvisioningAdapterOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? env.PROVISIONING_API_URL ?? "").replace(/\/+$/, "");
-    this.token = options.token ?? env.PROVISIONING_API_TOKEN ?? "";
-    this.timeoutMs = options.timeoutMs ?? env.PROVISIONING_API_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS;
+    this.baseUrl = env.PROVISIONING_API_URL.replace(/\/+$/, "");
+    this.token = env.PROVISIONING_API_TOKEN;
+    this.timeoutMs = options.timeoutMs ?? env.PROVISIONING_API_TIMEOUT_MS;
     this.fetchFn = options.fetchFn ?? fetch;
-
-    if (!this.baseUrl) {
-      throw new ProvisioningError("INFRA_UNAVAILABLE", "Provisioning API URL is not configured", {
-        retryable: false,
-      });
-    }
-    if (!this.token) {
-      throw new ProvisioningError("INFRA_UNAVAILABLE", "Provisioning API token is not configured", {
-        retryable: false,
-      });
-    }
   }
 
   async createSite(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
@@ -132,7 +118,7 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     body?: unknown,
     ctx?: ProvisioningCallContext
   ): Promise<unknown> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const url = new URL(endpoint, `${this.baseUrl}/`).href;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
