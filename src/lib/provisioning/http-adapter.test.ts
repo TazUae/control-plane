@@ -8,7 +8,6 @@ async function loadHttpAdapter() {
   process.env.DATABASE_URL ??= "postgresql://postgres:postgres@127.0.0.1:5432/controlplane";
   process.env.REDIS_URL ??= "redis://127.0.0.1:6379";
   process.env.CONTROL_PLANE_API_KEY ??= "test-control-plane-api-key";
-  process.env.ERP_ADMIN_PASSWORD ??= "test-admin-password";
   process.env.PROVISIONING_API_URL ??= "https://provisioning.example.com";
   process.env.PROVISIONING_API_TOKEN ??= "token-token-token-token";
   const module = await import("./http-adapter.js");

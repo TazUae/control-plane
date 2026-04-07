@@ -21,16 +21,14 @@ services:
       PROVISIONING_API_TOKEN: ${PROVISIONING_API_TOKEN}
       PROVISIONING_API_TIMEOUT_MS: ${PROVISIONING_API_TIMEOUT_MS}
       PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE: ${PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE}
-      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME}
-      ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD}
     depends_on:
       control-plane-postgres:
         condition: service_healthy
       control-plane-redis:
         condition: service_healthy
     networks:
-      - dokploy-network
       - control-plane-internal
+      - dokploy-network
     healthcheck:
       test:
         - CMD
@@ -59,16 +57,14 @@ services:
       PROVISIONING_API_TOKEN: ${PROVISIONING_API_TOKEN}
       PROVISIONING_API_TIMEOUT_MS: ${PROVISIONING_API_TIMEOUT_MS}
       PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE: ${PROVISIONING_VALIDATE_ERP_DB_ON_COMPLETE}
-      ERP_CONTAINER_NAME: ${ERP_CONTAINER_NAME}
-      ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD}
     depends_on:
       control-plane-postgres:
         condition: service_healthy
       control-plane-redis:
         condition: service_healthy
     networks:
-      - dokploy-network
       - control-plane-internal
+      - dokploy-network
 
   control-plane-postgres:
     image: postgres:16

@@ -22,8 +22,6 @@ const EnvSchema = z.object({
     .union([z.literal("true"), z.literal("false")])
     .default("false")
     .transform((v) => v === "true"),
-  ERP_CONTAINER_NAME: z.string().min(1).default("erpnext-backend"),
-  ERP_ADMIN_PASSWORD: z.string().min(8),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

@@ -11,7 +11,6 @@
   "description": "",
   "dependencies": {
     "bullmq": "^5.71.1",
-    "execa": "^9.6.1",
     "fastify": "^5.8.4",
     "ioredis": "^5.10.1",
     "pg": "^8.20.0"

@@ -17,8 +17,8 @@ services:
       control-plane-redis:
         condition: service_healthy
     networks:
-      - dokploy-network
       - control-plane-internal
+      - dokploy-network
     healthcheck:
       test:
         - CMD
@@ -45,8 +45,8 @@ services:
       control-plane-redis:
         condition: service_healthy
     networks:
-      - dokploy-network
       - control-plane-internal
+      - dokploy-network
 
   control-plane-postgres:
     image: postgres:16

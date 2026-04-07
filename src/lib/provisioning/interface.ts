@@ -20,7 +20,7 @@ export interface ProvisioningAdapter {
   /**
    * Stable adapter identifier used by orchestration logs and diagnostics.
    */
-  readonly kind: "docker-bench" | "http-provisioning";
+  readonly kind: "http-provisioning";
   createSite(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
   installErp(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
   enableScheduler(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
