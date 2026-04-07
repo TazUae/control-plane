@@ -6,10 +6,32 @@ import {
 } from "../../middleware/idempotency.js";
 import { acquireLock, releaseLock } from "../../jobs/lock.js";
 import crypto from "crypto";
-import { CreateTenantSchema } from "./tenant.schemas.js";
+import { CreateTenantSchema, GetTenantParamsSchema } from "./tenant.schemas.js";
+import { getTenantById } from "./tenant.service.js";
 import { requireInternalApiKey } from "../../middleware/require-internal-api-key.js";
 import { provisioningQueue } from "../../lib/queue.js";
 import { logger } from "../../lib/logger.js";
+
+app.get(
+  "/tenants/:id",
+  { preHandler: [requireInternalApiKey] },
+  async (req, reply) => {
+    const parsed = GetTenantParamsSchema.safeParse(req.params ?? {});
+    if (!parsed.success) {
+      return reply.code(422).send({
+        error: "Invalid request parameters",
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const tenant = await getTenantById(parsed.data.id);
+    if (!tenant) {
+      return reply.code(404).send({ error: "Tenant not found" });
+    }
+
+    return tenant;
+  }
+);
 
 function isPrismaUniqueConstraintError(error: unknown): boolean {
   return (

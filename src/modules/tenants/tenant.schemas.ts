@@ -6,6 +6,12 @@ import {
   SLUG_SITE_REGEX,
 } from "../../lib/validation.js";
 
+export const GetTenantParamsSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export type GetTenantParams = z.infer<typeof GetTenantParamsSchema>;
+
 export const CreateTenantSchema = z.object({
   slug: z
     .string()
