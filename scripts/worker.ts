@@ -4,6 +4,7 @@ import { runProvisioning } from "../src/jobs/state/runner.js";
 import { logger } from "../src/lib/logger.js";
 import { TENANT_PROVISIONING_QUEUE } from "../src/lib/constants.js";
 import { prisma } from "../src/lib/prisma.js";
+import { writeAuditEvent } from "../src/lib/audit.js";
 
 /** Long-running bench/HTTP steps; must exceed worst-case provisioning duration to avoid duplicate workers picking the same job. */
 const PROVISIONING_LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -21,6 +22,15 @@ const worker = new Worker(
       },
       "Provisioning job execution started"
     );
+    await writeAuditEvent({
+      type: "provisioning_job.started",
+      tenantId: job.data?.tenantId,
+      payload: {
+        entityId: job.data?.jobId,
+        action: "provisioning_job.started",
+        metadata: { queueJobId: job.id },
+      },
+    });
     await runProvisioning(job.data.jobId, {
       queueJobId: job.id?.toString(),
       requestId: typeof job.data?.requestId === "string" ? job.data.requestId : undefined,

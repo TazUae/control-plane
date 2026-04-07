@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { ProvisioningStatus, TenantStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { StepRunStatus } from "../../lib/step-run-status.js";
+import { writeAuditEvent } from "../../lib/audit.js";
 import { steps } from "./steps.js";
 import { logger } from "../../lib/logger.js";
 import { getProvisioningAdapter } from "../../lib/provisioning/index.js";
@@ -332,6 +333,16 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
       data: {
         status: TenantStatus.failed,
         lastError: error instanceof Error ? error.message : typedError.message,
+      },
+    });
+
+    await writeAuditEvent({
+      type: "provisioning_job.completed",
+      tenantId: tenant.id,
+      payload: {
+        entityId: jobId,
+        action: "provisioning_job.completed",
+        metadata: { success: false, errorCode: typedError.code },
       },
     });
 

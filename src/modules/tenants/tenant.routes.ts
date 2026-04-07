@@ -12,6 +12,7 @@ import { getTenantById } from "./tenant.service.js";
 import { requireInternalApiKey } from "../../middleware/require-internal-api-key.js";
 import { provisioningQueue } from "../../lib/queue.js";
 import { logger } from "../../lib/logger.js";
+import { writeAuditEvent } from "../../lib/audit.js";
 
 app.get(
   "/tenants/:id",
@@ -139,6 +140,27 @@ app.post(
       if (!result.jobId) {
         throw new Error("Provisioning jobId missing before enqueue");
       }
+
+      await Promise.all([
+        writeAuditEvent({
+          type: "tenant.created",
+          tenantId: result.tenantId,
+          payload: {
+            entityId: result.tenantId,
+            action: "tenant.created",
+            metadata: { slug },
+          },
+        }),
+        writeAuditEvent({
+          type: "provisioning_job.created",
+          tenantId: result.tenantId,
+          payload: {
+            entityId: result.jobId,
+            action: "provisioning_job.created",
+            metadata: { slug, tenantId: result.tenantId },
+          },
+        }),
+      ]);
 
       logger.info(
         { requestId, provisioningJobId: result.jobId, tenantId: result.tenantId },
