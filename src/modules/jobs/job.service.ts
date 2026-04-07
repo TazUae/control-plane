@@ -1,5 +1,7 @@
-import type { ProvisioningStatus } from "@prisma/client";
+import { ProvisioningStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { provisioningQueue } from "../../lib/queue.js";
+import { logger } from "../../lib/logger.js";
 
 export type LatestStepInfo = {
   step: string;
@@ -71,4 +73,118 @@ export async function getProvisioningJobById(id: string): Promise<GetProvisionin
     updatedAt: job.updatedAt,
     latestStep,
   };
+}
+
+export type RetryEnqueueResult =
+  | { kind: "not_found" }
+  | { kind: "conflict"; jobStatus: ProvisioningStatus }
+  | {
+      kind: "ok";
+      jobId: string;
+      tenantId: string;
+      queueJobId: string | undefined;
+      status: ProvisioningStatus;
+      attemptCount: number;
+    }
+  | { kind: "enqueue_failed"; message: string };
+
+export async function retryEnqueueProvisioningJob(
+  jobId: string,
+  requestId: string
+): Promise<RetryEnqueueResult> {
+  const job = await prisma.provisioningJob.findUnique({
+    where: { id: jobId },
+    include: { tenant: true },
+  });
+
+  if (!job) {
+    return { kind: "not_found" };
+  }
+
+  if (job.status !== ProvisioningStatus.enqueue_failed) {
+    return { kind: "conflict", jobStatus: job.status };
+  }
+
+  const retryAttempt = job.attemptCount + 1;
+
+  const reserved = await prisma.provisioningJob.updateMany({
+    where: { id: jobId, status: ProvisioningStatus.enqueue_failed },
+    data: {
+      status: ProvisioningStatus.queued,
+      failureReason: null,
+    },
+  });
+
+  if (reserved.count === 0) {
+    const j = await prisma.provisioningJob.findUnique({ where: { id: jobId } });
+    if (!j) {
+      return { kind: "not_found" };
+    }
+    return { kind: "conflict", jobStatus: j.status };
+  }
+
+  try {
+    const queueJob = await provisioningQueue.add(
+      "provision",
+      {
+        jobId: job.id,
+        tenantId: job.tenantId,
+        slug: job.tenant.slug,
+        plan: job.tenant.plan,
+        region: job.tenant.region,
+        requestId,
+      },
+      { attempts: 1, jobId: job.id }
+    );
+
+    await prisma.provisioningJob.update({
+      where: { id: jobId },
+      data: { attemptCount: { increment: 1 } },
+    });
+
+    const updated = await prisma.provisioningJob.findUnique({
+      where: { id: jobId },
+      select: { attemptCount: true },
+    });
+
+    logger.info(
+      {
+        jobId: job.id,
+        tenantId: job.tenantId,
+        retryAttempt,
+        queueJobId: queueJob.id,
+        requestId,
+      },
+      "Provisioning job re-enqueued after enqueue_failed"
+    );
+
+    return {
+      kind: "ok",
+      jobId: job.id,
+      tenantId: job.tenantId,
+      queueJobId: queueJob.id,
+      status: ProvisioningStatus.queued,
+      attemptCount: updated?.attemptCount ?? retryAttempt,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(
+      {
+        err: error,
+        jobId: job.id,
+        tenantId: job.tenantId,
+        retryAttempt,
+        requestId,
+      },
+      `Provisioning retry enqueue failed: ${message}`
+    );
+    await prisma.provisioningJob.update({
+      where: { id: jobId },
+      data: {
+        status: ProvisioningStatus.enqueue_failed,
+        failureReason: message,
+      },
+    });
+    return { kind: "enqueue_failed", message };
+  }
 }
