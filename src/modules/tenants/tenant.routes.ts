@@ -1,3 +1,4 @@
+import { ProvisioningStatus, TenantStatus } from "@prisma/client";
 import { app } from "../../app.js";
 import { prisma } from "../../lib/prisma.js";
 import {
@@ -108,7 +109,7 @@ app.post(
             slug,
             plan,
             region,
-            status: "provisioning",
+            status: TenantStatus.provisioning,
           },
         });
 
@@ -123,7 +124,7 @@ app.post(
         const job = await tx.provisioningJob.create({
           data: {
             tenantId: tenant.id,
-            status: "queued",
+            status: ProvisioningStatus.queued,
             currentStep: "queued",
           },
         });
@@ -131,7 +132,7 @@ app.post(
         return {
           tenantId: tenant.id,
           jobId: job.id,
-          status: "queued" as const,
+          status: ProvisioningStatus.queued,
         };
       });
 
@@ -174,7 +175,7 @@ app.post(
         await prisma.provisioningJob.update({
           where: { id: result.jobId },
           data: {
-            status: "enqueue_failed",
+            status: ProvisioningStatus.enqueue_failed,
             failureReason: message,
           },
         });
@@ -182,7 +183,7 @@ app.post(
           error: "Provisioning job could not be queued; the tenant was created and can be recovered manually",
           tenantId: result.tenantId,
           jobId: result.jobId,
-          status: "enqueue_failed",
+          status: ProvisioningStatus.enqueue_failed,
         });
       }
 
@@ -204,7 +205,7 @@ app.post(
               tenantId: result.tenantId,
               jobId: result.jobId,
               queueJobId: queueJob.id,
-              status: "queued",
+              status: ProvisioningStatus.queued,
             },
           },
         });
@@ -214,7 +215,7 @@ app.post(
         tenantId: result.tenantId,
         jobId: result.jobId,
         queueJobId: queueJob.id,
-        status: "queued" as const,
+        status: ProvisioningStatus.queued,
       };
     } catch (error) {
       if (idem) {

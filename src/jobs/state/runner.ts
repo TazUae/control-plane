@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
+import { ProvisioningStatus, TenantStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { StepRunStatus } from "../../lib/step-run-status.js";
 import { steps } from "./steps.js";
 import { logger } from "../../lib/logger.js";
 import { getProvisioningAdapter } from "../../lib/provisioning/index.js";
@@ -77,11 +79,11 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
 
     await prisma.provisioningJob.update({
       where: { id: jobId },
-      data: { status: "running" },
+      data: { status: ProvisioningStatus.running },
     });
 
     const completedSteps = await prisma.provisioningStepRun.findMany({
-      where: { jobId, status: "completed" },
+      where: { jobId, status: StepRunStatus.Completed },
     });
 
     const completedSet = new Set(completedSteps.map((s: { step: string }) => s.step));
@@ -110,11 +112,11 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
               id: crypto.randomUUID(),
               jobId,
               step,
-              status: "running",
+              status: StepRunStatus.Running,
               startedAt: new Date(),
             },
             update: {
-              status: "running",
+              status: StepRunStatus.Running,
               startedAt: new Date(),
               finishedAt: null,
               error: null,
@@ -206,7 +208,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
           await prisma.provisioningStepRun.update({
             where: { jobId_step: { jobId, step } },
             data: {
-              status: "completed",
+              status: StepRunStatus.Completed,
               finishedAt: new Date(),
             },
           });
@@ -234,7 +236,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
           await prisma.provisioningStepRun.updateMany({
             where: { jobId, step, status: "running" },
             data: {
-              status: "failed",
+              status: StepRunStatus.Failed,
               finishedAt: new Date(),
               error: `${typedError.code}: ${typedError.message}`,
             },
@@ -290,7 +292,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
     await prisma.provisioningJob.update({
       where: { id: jobId },
       data: {
-        status: "completed",
+        status: ProvisioningStatus.completed,
         finishedAt: new Date(),
       },
     });
@@ -298,7 +300,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
     await prisma.tenant.update({
       where: { id: tenant.id },
       data: {
-        status: "active",
+        status: TenantStatus.active,
         lastError: null,
       },
     });
@@ -320,7 +322,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
     await prisma.provisioningJob.update({
       where: { id: jobId },
       data: {
-        status: "failed",
+        status: ProvisioningStatus.failed,
         failureReason: `${typedError.code}: ${typedError.message}`,
       },
     });
@@ -328,7 +330,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
     await prisma.tenant.update({
       where: { id: tenant.id },
       data: {
-        status: "failed",
+        status: TenantStatus.failed,
         lastError: error instanceof Error ? error.message : typedError.message,
       },
     });
