@@ -16,7 +16,7 @@ export type GetProvisioningJobResult = {
   currentStep: string;
   lastError: string | null;
   createdAt: Date;
-  updatedAt: Date | null;
+  updatedAt: Date;
   latestStep: LatestStepInfo | null;
 };
 
@@ -30,6 +30,7 @@ export async function getProvisioningJobById(id: string): Promise<GetProvisionin
       currentStep: true,
       failureReason: true,
       createdAt: true,
+      updatedAt: true,
       finishedAt: true,
       steps: {
         orderBy: { startedAt: "desc" },
@@ -60,12 +61,6 @@ export async function getProvisioningJobById(id: string): Promise<GetProvisionin
       }
     : null;
 
-  const updatedAt =
-    job.finishedAt ??
-    latestStep?.finishedAt ??
-    latestStep?.startedAt ??
-    null;
-
   return {
     id: job.id,
     tenantId: job.tenantId,
@@ -73,7 +68,7 @@ export async function getProvisioningJobById(id: string): Promise<GetProvisionin
     currentStep: job.currentStep,
     lastError: job.failureReason,
     createdAt: job.createdAt,
-    updatedAt,
+    updatedAt: job.updatedAt,
     latestStep,
   };
 }
