@@ -15,6 +15,36 @@ async function loadHttpAdapter() {
   return module.HttpProvisioningAdapter;
 }
 
+test("createSite POST body matches agent contract (siteName, domain, apiUsername only)", async () => {
+  const HttpProvisioningAdapter = await loadHttpAdapter();
+  let postedBody: unknown;
+  const adapter = new HttpProvisioningAdapter({
+    fetchFn: async (_url, init) => {
+      postedBody = init?.body ? JSON.parse(String(init.body)) : undefined;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            action: "createSite",
+            site: "acme",
+            outcome: "applied",
+            dbName: "_db",
+          },
+          timestamp,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    },
+  });
+
+  await adapter.createSite("acme", { requestId: "req-1", tenantId: "tenant-1" });
+  assert.deepEqual(postedBody, {
+    siteName: "acme",
+    domain: "acme.erp.example.com",
+    apiUsername: "cp_acme",
+  });
+});
+
 test("maps structured non-retryable remote failure into ProvisioningError", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   const adapter = new HttpProvisioningAdapter({

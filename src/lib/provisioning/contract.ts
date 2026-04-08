@@ -35,6 +35,15 @@ export const SiteOperationRequestSchema = z.object({
 
 export type SiteOperationRequest = z.infer<typeof SiteOperationRequestSchema>;
 
+/** POST /sites/create — control plane supplies site FQDN and API user name; agent does not derive them. */
+export const CreateSiteRequestSchema = z.object({
+  siteName: z.string().trim().min(1),
+  domain: z.string().trim().min(1),
+  apiUsername: z.string().trim().min(1),
+});
+
+export type CreateSiteRequest = z.infer<typeof CreateSiteRequestSchema>;
+
 /**
  * Operation result details returned for successful provisioning actions.
  */
@@ -130,7 +139,6 @@ export type SiteOperationResponse = ProvisioningApiResponse<SiteOperationRespons
 /**
  * Endpoint-specific request/response aliases for clarity at call sites.
  */
-export type CreateSiteRequest = SiteOperationRequest;
 export type CreateSiteResponse = SiteOperationResponse;
 
 export type InstallErpRequest = SiteOperationRequest;

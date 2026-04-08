@@ -37,18 +37,11 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
   async createSite(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     const siteName = site;
-    const payload: Record<string, unknown> = {
-      site: siteName,
+    const payload = {
       siteName,
       domain: `${siteName}.${env.ERP_BASE_DOMAIN}`,
       apiUsername: `cp_${siteName}`,
     };
-    if (ctx?.requestId || ctx?.tenantId) {
-      payload.context = {
-        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
-        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
-      };
-    }
     const url = `${this.baseUrl}/sites/create`;
     logger.info({ url, payload }, "Calling provisioning API");
     const json = await this.request("POST", "/sites/create", payload, ctx, { provisioningApiDetailedLogs: true });

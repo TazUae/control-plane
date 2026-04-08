@@ -10,7 +10,7 @@ export type ProvisioningOperationResult = {
   stderr?: string;
 };
 
-/** Optional correlation context propagated to provisioning-agent and logs. */
+/** Optional correlation for HTTP headers and logs (not sent in POST /sites/create body). */
 export type ProvisioningCallContext = {
   requestId?: string;
   tenantId?: string;
