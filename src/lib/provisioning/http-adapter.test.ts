@@ -10,6 +10,7 @@ async function loadHttpAdapter() {
   process.env.CONTROL_PLANE_API_KEY ??= "test-control-plane-api-key";
   process.env.PROVISIONING_API_URL ??= "https://provisioning.example.com";
   process.env.PROVISIONING_API_TOKEN ??= "token-token-token-token";
+  process.env.ERP_BASE_DOMAIN ??= "erp.example.com";
   const module = await import("./http-adapter.js");
   return module.HttpProvisioningAdapter;
 }

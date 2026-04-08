@@ -25,19 +25,50 @@ const HealthSuccessEnvelopeSchema = SuccessEnvelopeSchema(HealthResponseDataSche
 export class HttpProvisioningAdapter implements ProvisioningAdapter {
   public readonly kind = "http-provisioning" as const;
   private readonly baseUrl: string;
-  private readonly token: string;
   private readonly timeoutMs: number;
   private readonly fetchFn: FetchLike;
 
   constructor(options: HttpProvisioningAdapterOptions = {}) {
     this.baseUrl = env.PROVISIONING_API_URL.replace(/\/+$/, "");
-    this.token = env.PROVISIONING_API_TOKEN;
     this.timeoutMs = options.timeoutMs ?? env.PROVISIONING_API_TIMEOUT_MS;
     this.fetchFn = options.fetchFn ?? fetch;
   }
 
   async createSite(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
-    return this.callSiteOperation("/sites/create", "createSite", site, ctx);
+    assertValidSlugOrSite(site, "site");
+    const siteName = site;
+    const payload: Record<string, unknown> = {
+      site: siteName,
+      siteName,
+      domain: `${siteName}.${env.ERP_BASE_DOMAIN}`,
+      apiUsername: `cp_${siteName}`,
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      payload.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const url = `${this.baseUrl}/sites/create`;
+    logger.info({ url, payload }, "Calling provisioning API");
+    const json = await this.request("POST", "/sites/create", payload, ctx, { provisioningApiDetailedLogs: true });
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid provisioning API success payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "createSite",
+      dbName: success.data.data.dbName,
+      outcome: success.data.data.outcome,
+      alreadyExists: success.data.data.alreadyExists,
+      alreadyInstalled: success.data.data.alreadyInstalled,
+      alreadyConfigured: success.data.data.alreadyConfigured,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
   }
 
   async resolveSiteDbName(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
@@ -116,7 +147,8 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     method: "GET" | "POST",
     endpoint: string,
     body?: unknown,
-    ctx?: ProvisioningCallContext
+    ctx?: ProvisioningCallContext,
+    options?: { provisioningApiDetailedLogs?: boolean }
   ): Promise<unknown> {
     const url = new URL(endpoint, `${this.baseUrl}/`).href;
     const controller = new AbortController();
@@ -136,7 +168,7 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
 
     try {
       const headers: Record<string, string> = {
-        Authorization: `Bearer ${this.token}`,
+        Authorization: `Bearer ${env.PROVISIONING_API_TOKEN}`,
         ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
         ...(ctx?.requestId ? { "x-request-id": ctx.requestId } : {}),
       };
@@ -151,11 +183,24 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
       const parsedBody = this.tryParseJson(rawText);
 
       if (!response.ok) {
+        if (options?.provisioningApiDetailedLogs) {
+          logger.error(
+            {
+              error: `HTTP ${response.status}`,
+              response: parsedBody ?? rawText,
+            },
+            "Provisioning API failed"
+          );
+        }
         const failedEnvelope = FailureEnvelopeSchema.safeParse(parsedBody);
         if (failedEnvelope.success) {
           throw this.mapFailureEnvelopeToProvisioningError(failedEnvelope.data.error);
         }
         throw this.mapHttpStatusToProvisioningError(response.status, rawText);
+      }
+
+      if (options?.provisioningApiDetailedLogs) {
+        logger.info({ status: response.status, data: parsedBody }, "Provisioning API response");
       }
 
       logger.info(
@@ -180,6 +225,16 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     } catch (error) {
       if (error instanceof ProvisioningError) {
         throw error;
+      }
+
+      if (options?.provisioningApiDetailedLogs) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            response: undefined,
+          },
+          "Provisioning API failed"
+        );
       }
 
       if (controller.signal.aborted || this.isAbortError(error)) {

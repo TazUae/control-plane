@@ -13,6 +13,8 @@ const EnvSchema = z.object({
   CONTROL_PLANE_API_KEY: z.string().min(16),
   PROVISIONING_API_URL: z.string().url(),
   PROVISIONING_API_TOKEN: z.string().min(16),
+  /** Base DNS name used to build site FQDNs for provisioning (e.g. `acme.<ERP_BASE_DOMAIN>`). */
+  ERP_BASE_DOMAIN: z.string().min(1),
   PROVISIONING_API_TIMEOUT_MS: z.coerce.number().int().min(1).max(300_000).default(120_000),
   /**
    * When true, worker re-reads `db_name` via provisioning-agent after all steps and fails if it
