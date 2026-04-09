@@ -10,6 +10,8 @@ type ProvisioningErrorOptions = {
   details?: string;
   retryable?: boolean;
   cause?: unknown;
+  /** Original agent/API payload or structured failure for persistence (see provisioning job `result`). */
+  raw?: unknown;
   stdout?: string;
   stderr?: string;
   exitCode?: number;
@@ -19,6 +21,7 @@ export class ProvisioningError extends Error {
   public readonly code: ProvisioningErrorCode;
   public readonly details?: string;
   public readonly retryable: boolean;
+  public readonly raw?: unknown;
   public readonly stdout?: string;
   public readonly stderr?: string;
   public readonly exitCode?: number;
@@ -29,6 +32,7 @@ export class ProvisioningError extends Error {
     this.code = code;
     this.details = options.details;
     this.retryable = options.retryable ?? (code === "INFRA_UNAVAILABLE" || code === "ERP_TIMEOUT");
+    this.raw = options.raw;
     this.stdout = options.stdout;
     this.stderr = options.stderr;
     this.exitCode = options.exitCode;

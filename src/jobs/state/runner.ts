@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { ProvisioningStatus, TenantStatus } from "@prisma/client";
+import { Prisma, ProvisioningStatus, TenantStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { StepRunStatus } from "../../lib/step-run-status.js";
 import { writeAuditEvent } from "../../lib/audit.js";
@@ -27,8 +27,51 @@ function mapUnexpectedError(error: unknown): ProvisioningError {
   return new ProvisioningError("ERP_PARTIAL_SUCCESS", "Unexpected provisioning failure", {
     details: error instanceof Error ? error.message : String(error),
     cause: error,
+    raw: error,
     retryable: false,
   });
+}
+
+/** Serializable JSON for `ProvisioningJob.result` (agent envelope or structured error). */
+function toProvisioningJobResultJson(error: unknown): Prisma.InputJsonValue {
+  if (isProvisioningError(error)) {
+    const base =
+      error.raw !== undefined
+        ? error.raw
+        : {
+            name: error.name,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            stdout: error.stdout,
+            stderr: error.stderr,
+            exitCode: error.exitCode,
+            retryable: error.retryable,
+          };
+    try {
+      return JSON.parse(JSON.stringify(base)) as Prisma.InputJsonValue;
+    } catch {
+      return { message: String(base) };
+    }
+  }
+  if (error instanceof Error) {
+    try {
+      return JSON.parse(
+        JSON.stringify({
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+        })
+      ) as Prisma.InputJsonValue;
+    } catch {
+      return { message: error.message };
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify({ value: error })) as Prisma.InputJsonValue;
+  } catch {
+    return { value: String(error) };
+  }
 }
 
 export async function runProvisioning(jobId: string, options: RunProvisioningOptions = {}) {
@@ -239,7 +282,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
             data: {
               status: StepRunStatus.Failed,
               finishedAt: new Date(),
-              error: `${typedError.code}: ${typedError.message}`,
+              error: typedError.message || "Unknown error",
             },
           });
 
@@ -295,6 +338,8 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
       data: {
         status: ProvisioningStatus.completed,
         finishedAt: new Date(),
+        failureReason: null,
+        result: Prisma.DbNull,
       },
     });
 
@@ -308,6 +353,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
 
   } catch (error) {
     const typedError = mapUnexpectedError(error);
+    console.error("❌ PROVISIONING FAILED:", error);
     logger.error(
       {
         ...baseLog,
@@ -324,7 +370,8 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
       where: { id: jobId },
       data: {
         status: ProvisioningStatus.failed,
-        failureReason: `${typedError.code}: ${typedError.message}`,
+        failureReason: typedError.message || "Unknown error",
+        result: toProvisioningJobResultJson(typedError),
       },
     });
 

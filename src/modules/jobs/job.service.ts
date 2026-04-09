@@ -1,4 +1,4 @@
-import { ProvisioningStatus } from "@prisma/client";
+import { Prisma, ProvisioningStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { provisioningQueue } from "../../lib/queue.js";
 import { logger } from "../../lib/logger.js";
@@ -17,6 +17,8 @@ export type GetProvisioningJobResult = {
   status: ProvisioningStatus;
   currentStep: string;
   lastError: string | null;
+  /** Structured failure payload when status is failed (agent error envelope or serialized error). */
+  result: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
   latestStep: LatestStepInfo | null;
@@ -31,6 +33,7 @@ export async function getProvisioningJobById(id: string): Promise<GetProvisionin
       status: true,
       currentStep: true,
       failureReason: true,
+      result: true,
       createdAt: true,
       updatedAt: true,
       finishedAt: true,
@@ -69,6 +72,7 @@ export async function getProvisioningJobById(id: string): Promise<GetProvisionin
     status: job.status,
     currentStep: job.currentStep,
     lastError: job.failureReason,
+    result: job.result,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     latestStep,
@@ -112,6 +116,7 @@ export async function retryEnqueueProvisioningJob(
     data: {
       status: ProvisioningStatus.queued,
       failureReason: null,
+      result: Prisma.DbNull,
     },
   });
 
@@ -183,6 +188,7 @@ export async function retryEnqueueProvisioningJob(
       data: {
         status: ProvisioningStatus.enqueue_failed,
         failureReason: message,
+        result: { kind: "enqueue_failed", message },
       },
     });
     return { kind: "enqueue_failed", message };

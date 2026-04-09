@@ -199,6 +199,7 @@ app.post(
           data: {
             status: ProvisioningStatus.enqueue_failed,
             failureReason: message,
+            result: { kind: "enqueue_failed", message },
           },
         });
         return reply.code(503).send({

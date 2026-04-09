@@ -211,6 +211,7 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
         throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Provisioning API returned non-JSON success body", {
           details: rawText.slice(0, 500),
           retryable: false,
+          raw: { rawTextPreview: rawText.slice(0, 500) },
         });
       }
 
@@ -233,12 +234,14 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
       if (controller.signal.aborted || this.isAbortError(error)) {
         throw new ProvisioningError("ERP_TIMEOUT", "Provisioning API request timed out", {
           details: `Request to ${endpoint} exceeded ${this.timeoutMs}ms`,
+          raw: { endpoint, timeoutMs: this.timeoutMs },
         });
       }
 
       throw new ProvisioningError("INFRA_UNAVAILABLE", "Provisioning API request failed", {
         details: error instanceof Error ? error.message : String(error),
         cause: error,
+        raw: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
       });
     } finally {
       clearTimeout(timer);
@@ -263,19 +266,23 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
       stdout: error.stdout,
       stderr: error.stderr,
       exitCode: error.exitCode,
+      raw: error,
     });
   }
 
   private mapHttpStatusToProvisioningError(status: number, rawText: string): ProvisioningError {
+    const raw = { httpStatus: status, body: rawText.slice(0, 4000) };
     if (status >= 500) {
       return new ProvisioningError("INFRA_UNAVAILABLE", "Provisioning API unavailable", {
         details: `HTTP ${status}: ${rawText.slice(0, 500)}`,
+        raw,
       });
     }
 
     return new ProvisioningError("ERP_COMMAND_FAILED", "Provisioning API returned an error response", {
       details: `HTTP ${status}: ${rawText.slice(0, 500)}`,
       retryable: false,
+      raw,
     });
   }
 
