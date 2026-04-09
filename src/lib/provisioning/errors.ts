@@ -45,3 +45,34 @@ export class ProvisioningError extends Error {
 export function isProvisioningError(error: unknown): error is ProvisioningError {
   return error instanceof ProvisioningError;
 }
+
+function trimMeaningful(s: string | undefined): string | undefined {
+  const t = s?.trim();
+  return t ? t : undefined;
+}
+
+function stderrFromRawPayload(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as { stderr?: unknown; details?: unknown };
+  const nested = r.details;
+  if (nested && typeof nested === "object" && nested !== null && "stderr" in nested) {
+    const s = (nested as { stderr?: unknown }).stderr;
+    if (typeof s === "string") return trimMeaningful(s);
+  }
+  if (typeof r.stderr === "string") return trimMeaningful(r.stderr);
+  return undefined;
+}
+
+/**
+ * Human-readable failure text for persistence (DB, APIs). Prefers command stderr and
+ * structured agent payloads over generic wrapper messages.
+ */
+export function getProvisioningFailureReason(error: ProvisioningError): string {
+  return (
+    stderrFromRawPayload(error.raw) ||
+    trimMeaningful(error.stderr) ||
+    trimMeaningful(error.details) ||
+    trimMeaningful(error.message) ||
+    "Unknown failure"
+  );
+}

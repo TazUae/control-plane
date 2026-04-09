@@ -6,7 +6,11 @@ import { writeAuditEvent } from "../../lib/audit.js";
 import { steps } from "./steps.js";
 import { logger } from "../../lib/logger.js";
 import { getProvisioningAdapter } from "../../lib/provisioning/index.js";
-import { isProvisioningError, ProvisioningError } from "../../lib/provisioning/errors.js";
+import {
+  getProvisioningFailureReason,
+  isProvisioningError,
+  ProvisioningError,
+} from "../../lib/provisioning/errors.js";
 import { assertValidSlugOrSite } from "../../lib/validation.js";
 import { shouldRetryProvisioningError } from "./retry-policy.js";
 import { env } from "../../config/env.js";
@@ -282,7 +286,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
             data: {
               status: StepRunStatus.Failed,
               finishedAt: new Date(),
-              error: typedError.message || "Unknown error",
+              error: getProvisioningFailureReason(typedError),
             },
           });
 
@@ -366,11 +370,13 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
       "Provisioning job failed"
     );
 
+    const failureReason = getProvisioningFailureReason(typedError);
+
     await prisma.provisioningJob.update({
       where: { id: jobId },
       data: {
         status: ProvisioningStatus.failed,
-        failureReason: typedError.message || "Unknown error",
+        failureReason,
         result: toProvisioningJobResultJson(typedError),
       },
     });
@@ -379,7 +385,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
       where: { id: tenant.id },
       data: {
         status: TenantStatus.failed,
-        lastError: error instanceof Error ? error.message : typedError.message,
+        lastError: failureReason,
       },
     });
 
