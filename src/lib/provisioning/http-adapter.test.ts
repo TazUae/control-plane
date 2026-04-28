@@ -236,3 +236,32 @@ test("resolveSiteDbName calls read-db-name endpoint", async () => {
   assert.equal(calledPath, "/sites/read-db-name");
   assert.equal(result.dbName, "_abc123456789abcd");
 });
+
+test("installFitdesk calls install-fitdesk endpoint", async () => {
+  const HttpProvisioningAdapter = await loadHttpAdapter();
+  let calledPath = "";
+  const adapter = new HttpProvisioningAdapter({
+    fetchFn: async (url) => {
+      calledPath = new URL(url.toString()).pathname;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            action: "installFitdesk",
+            site: "acme",
+            outcome: "applied",
+          },
+          timestamp,
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      );
+    },
+  });
+
+  const result = await adapter.installFitdesk("acme");
+  assert.equal(calledPath, "/sites/install-fitdesk");
+  assert.equal(result.action, "installFitdesk");
+});

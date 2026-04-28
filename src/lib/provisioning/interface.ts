@@ -23,6 +23,7 @@ export interface ProvisioningAdapter {
   readonly kind: "http-provisioning";
   createSite(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
   installErp(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
+  installFitdesk(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
   enableScheduler(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
   addDomain(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
   createApiUser(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;

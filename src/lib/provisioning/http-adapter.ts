@@ -72,6 +72,10 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     return this.callSiteOperation("/sites/install-erp", "installErp", site, ctx);
   }
 
+  async installFitdesk(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    return this.callSiteOperation("/sites/install-fitdesk", "installFitdesk", site, ctx);
+  }
+
   async enableScheduler(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     return this.callSiteOperation("/sites/enable-scheduler", "enableScheduler", site, ctx);
   }
