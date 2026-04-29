@@ -1,0 +1,2 @@
+ALTER TABLE "Tenant" ADD COLUMN "erpApiKey" TEXT;
+ALTER TABLE "Tenant" ADD COLUMN "erpApiSecret" TEXT;

@@ -32,16 +32,31 @@ enum ProvisioningStatus {
 //////////////////////////////////////////////////////
 
 model Tenant {
-  id        String       @id @default(uuid())
-  slug      String       @unique
-  status    TenantStatus
-  erpSite   String?
-  erpDbName String?
-  lastError String?
-  plan      String
-  region    String
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id                String       @id @default(uuid())
+  slug              String       @unique
+  status            TenantStatus
+  erpSite           String?
+  erpDbName         String?
+  erpApiKey         String?
+  erpApiSecret      String?
+  adminPasswordHash String?
+  lastError         String?
+  plan              String
+  region            String
+  country              String
+  defaultCurrency      String
+  timezone             String
+  language             String    @default("en")
+  dateFormat           String    @default("dd-mm-yyyy")
+  currencyPrecision    Int       @default(2)
+  companyName          String
+  companyAbbr          String
+  fiscalYearStartMonth Int       @default(1)
+  fiscalYearName       String?
+  regionalSetupModule  String?
+  webhookSecret        String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   domains   TenantDomain[]
   jobs      ProvisioningJob[]

@@ -9,7 +9,7 @@ import {
   SuccessEnvelopeSchema,
 } from "./contract.js";
 import { ProvisioningError } from "./errors.js";
-import { ProvisioningAdapter, ProvisioningCallContext, ProvisioningOperationResult } from "./interface.js";
+import { CompanyPayload, DomainsPayload, FiscalYearPayload, FitdeskPayload, GlobalDefaultsPayload, LocalePayload, ProvisioningAdapter, ProvisioningCallContext, ProvisioningOperationResult, RegionalSetupPayload, SetupCompletePayload, SmokeTestPayload } from "./interface.js";
 
 type FetchLike = typeof fetch;
 
@@ -34,13 +34,14 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     this.fetchFn = options.fetchFn ?? fetch;
   }
 
-  async createSite(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+  async createSite(site: string, adminPassword: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     assertValidSlugOrSite(site, "site");
     const siteName = site;
     const payload = {
       siteName,
       domain: `${siteName}.${env.ERP_BASE_DOMAIN}`,
       apiUsername: `cp_${siteName}`,
+      adminPassword,
     };
     const url = `${this.baseUrl}/sites/create`;
     logger.info({ url, payload }, "Calling provisioning API");
@@ -80,12 +81,290 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
     return this.callSiteOperation("/sites/enable-scheduler", "enableScheduler", site, ctx);
   }
 
+  async setupLocale(site: string, payload: LocalePayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = {
+      site,
+      country: payload.country,
+      defaultCurrency: payload.defaultCurrency,
+      timezone: payload.timezone,
+      language: payload.language,
+      dateFormat: payload.dateFormat,
+      currencyPrecision: payload.currencyPrecision,
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/setup-locale", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid setup-locale response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "setupLocale",
+      outcome: success.data.data.outcome,
+      alreadyConfigured: success.data.data.alreadyConfigured,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
+  }
+
+  async setupCompany(site: string, payload: CompanyPayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = {
+      site,
+      companyName: payload.companyName,
+      companyAbbr: payload.companyAbbr,
+      country: payload.country,
+      defaultCurrency: payload.defaultCurrency,
+      companyType: payload.companyType ?? "Company",
+      domain: payload.domain ?? "Services",
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/setup-company", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid setup-company response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "setupCompany",
+      outcome: success.data.data.outcome,
+      alreadyExists: success.data.data.alreadyExists,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
+  }
+
+  async setupFiscalYear(site: string, payload: FiscalYearPayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = {
+      site,
+      companyName: payload.companyName,
+      fiscalYearStartMonth: payload.fiscalYearStartMonth,
+      companyAbbr: payload.companyAbbr ?? "",
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/setup-fiscal-year", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid setup-fiscal-year response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "setupFiscalYear",
+      outcome: success.data.data.outcome,
+      alreadyConfigured: success.data.data.alreadyConfigured,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
+  }
+
+  async setupGlobalDefaults(site: string, payload: GlobalDefaultsPayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = {
+      site,
+      companyName: payload.companyName,
+      defaultCurrency: payload.defaultCurrency,
+      fiscalYearName: payload.fiscalYearName,
+      country: payload.country,
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/setup-global-defaults", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid setup-global-defaults response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "setupGlobalDefaults",
+      outcome: success.data.data.outcome,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
+  }
+
+  async setupComplete(site: string, payload: SetupCompletePayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = { site, companyName: payload.companyName };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/setup-complete", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid setup-complete response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "setupComplete",
+      outcome: success.data.data.outcome,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
+  }
+
+  async setupRegional(site: string, payload: RegionalSetupPayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = {
+      site,
+      country: payload.country,
+      companyName: payload.companyName,
+      companyAbbr: payload.companyAbbr ?? "",
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/setup-regional", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid setup-regional response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "setupRegional",
+      outcome: success.data.data.outcome,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
+  }
+
+  async setupDomains(site: string, payload: DomainsPayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = {
+      site,
+      companyName: payload.companyName,
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/setup-domains", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid setup-domains response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "setupDomains",
+      outcome: success.data.data.outcome,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
+  }
+
+  async setupRoles(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    return this.callSiteOperation("/sites/setup-roles", "setupRoles", site, ctx);
+  }
+
   async addDomain(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     return this.callSiteOperation("/sites/add-domain", "addDomain", site, ctx);
   }
 
   async createApiUser(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     return this.callSiteOperation("/sites/create-api-user", "createApiUser", site, ctx);
+  }
+
+  async runSmokeTest(site: string, payload: SmokeTestPayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = {
+      site,
+      companyName: payload.companyName,
+      apiKey: payload.apiKey,
+      apiSecret: payload.apiSecret,
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/smoke-test", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid smoke-test response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "smokeTest",
+      outcome: success.data.data.outcome,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
+  }
+
+  async setupFitdesk(site: string, payload: FitdeskPayload, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
+    assertValidSlugOrSite(site, "site");
+    const body: Record<string, unknown> = {
+      site,
+      companyName: payload.companyName,
+      companyAbbr: payload.companyAbbr,
+      ...(payload.controlPlaneWebhookUrl ? { controlPlaneWebhookUrl: payload.controlPlaneWebhookUrl } : {}),
+      ...(payload.controlPlaneWebhookSecret ? { controlPlaneWebhookSecret: payload.controlPlaneWebhookSecret } : {}),
+    };
+    if (ctx?.requestId || ctx?.tenantId) {
+      body.context = {
+        ...(ctx.requestId ? { requestId: ctx.requestId } : {}),
+        ...(ctx.tenantId ? { tenantId: ctx.tenantId } : {}),
+      };
+    }
+    const json = await this.request("POST", "/sites/setup-fitdesk", body, ctx);
+    const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid setup-fitdesk response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      action: success.data.data.action || "setupFitdesk",
+      outcome: success.data.data.outcome,
+      stdout: success.data.data.stdout,
+      stderr: success.data.data.stderr,
+    };
   }
 
   async healthCheck(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
@@ -137,6 +416,8 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
       alreadyConfigured: success.data.data.alreadyConfigured,
       stdout: success.data.data.stdout,
       stderr: success.data.data.stderr,
+      apiKey: success.data.data.apiKey,
+      apiSecret: success.data.data.apiSecret,
     };
   }
 

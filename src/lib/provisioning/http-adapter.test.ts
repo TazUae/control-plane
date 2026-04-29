@@ -15,7 +15,7 @@ async function loadHttpAdapter() {
   return module.HttpProvisioningAdapter;
 }
 
-test("createSite POST body matches agent contract (siteName, domain, apiUsername only)", async () => {
+test("createSite POST body includes siteName, domain, apiUsername, adminPassword", async () => {
   const HttpProvisioningAdapter = await loadHttpAdapter();
   let postedBody: unknown;
   const adapter = new HttpProvisioningAdapter({
@@ -37,11 +37,12 @@ test("createSite POST body matches agent contract (siteName, domain, apiUsername
     },
   });
 
-  await adapter.createSite("acme", { requestId: "req-1", tenantId: "tenant-1" });
+  await adapter.createSite("acme", "random-admin-pw", { requestId: "req-1", tenantId: "tenant-1" });
   assert.deepEqual(postedBody, {
     siteName: "acme",
     domain: "acme.erp.example.com",
     apiUsername: "cp_acme",
+    adminPassword: "random-admin-pw",
   });
 });
 
@@ -67,7 +68,7 @@ test("maps structured non-retryable remote failure into ProvisioningError", asyn
   });
 
   await assert.rejects(
-    async () => adapter.createSite("acme"),
+    async () => adapter.createSite("acme", "test-admin-pw"),
     (error: unknown) => {
       assert.ok(error instanceof ProvisioningError);
       assert.equal(error.code, "SITE_ALREADY_EXISTS");
@@ -175,7 +176,7 @@ test("accepts idempotent already-done success payload", async () => {
       ),
   });
 
-  const result = await adapter.createSite("acme");
+  const result = await adapter.createSite("acme", "test-admin-pw");
   assert.equal(result.action, "createSite");
   assert.equal(result.outcome, "already_done");
   assert.equal(result.alreadyExists, true);
@@ -203,7 +204,7 @@ test("maps dbName from createSite success payload", async () => {
       ),
   });
 
-  const result = await adapter.createSite("acme");
+  const result = await adapter.createSite("acme", "test-admin-pw");
   assert.equal(result.dbName, "_652d9db35da0a831");
 });
 

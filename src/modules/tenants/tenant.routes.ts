@@ -13,6 +13,74 @@ import { requireInternalApiKey } from "../../middleware/require-internal-api-key
 import { provisioningQueue } from "../../lib/queue.js";
 import { logger } from "../../lib/logger.js";
 import { writeAuditEvent } from "../../lib/audit.js";
+import { getCountryDefaults, deriveFiscalYearName } from "../../lib/country-defaults.js";
+import { getProvisioningAdapter } from "../../lib/provisioning/index.js";
+
+app.get(
+  "/tenants",
+  { preHandler: [requireInternalApiKey] },
+  async (_req, reply) => {
+    const tenants = await prisma.tenant.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        slug: true,
+        status: true,
+        country: true,
+        companyName: true,
+        createdAt: true,
+      },
+    });
+    return reply.send(tenants);
+  }
+);
+
+app.post(
+  "/tenants/:id/validate",
+  { preHandler: [requireInternalApiKey] },
+  async (req, reply) => {
+    const parsed = GetTenantParamsSchema.safeParse(req.params ?? {});
+    if (!parsed.success) {
+      return reply.code(422).send({
+        error: "Invalid request parameters",
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const tenant = await prisma.tenant.findUnique({ where: { id: parsed.data.id } });
+    if (!tenant) {
+      return reply.code(404).send({ error: "Tenant not found" });
+    }
+
+    if (!tenant.erpApiKey || !tenant.erpApiSecret || !tenant.companyName) {
+      return reply.code(422).send({
+        error: "Tenant not yet fully provisioned (missing API credentials or company name)",
+      });
+    }
+
+    const adapter = getProvisioningAdapter();
+    const siteName = tenant.erpSite ?? tenant.slug;
+
+    try {
+      const result = await adapter.runSmokeTest(
+        siteName,
+        {
+          companyName: tenant.companyName,
+          apiKey: tenant.erpApiKey,
+          apiSecret: tenant.erpApiSecret,
+        },
+        { tenantId: tenant.id }
+      );
+      return reply.send({ ok: true, smoke_test: "passed", stdout: result.stdout ?? null });
+    } catch (error) {
+      return reply.code(422).send({
+        ok: false,
+        smoke_test: "failed",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
 
 app.get(
   "/tenants/:id",
@@ -32,6 +100,80 @@ app.get(
     }
 
     return tenant;
+  }
+);
+
+// GET /tenants/:id/erp-credentials — internal endpoint; returns raw ERP auth
+// details for tooling and integration tests. Never exposed to end users.
+app.get(
+  "/tenants/:id/erp-credentials",
+  { preHandler: [requireInternalApiKey] },
+  async (req, reply) => {
+    const parsed = GetTenantParamsSchema.safeParse(req.params ?? {});
+    if (!parsed.success) {
+      return reply.code(422).send({
+        error: "Invalid request parameters",
+        details: parsed.error.flatten(),
+      });
+    }
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: parsed.data.id },
+      select: {
+        id: true,
+        slug: true,
+        erpSite: true,
+        erpApiKey: true,
+        erpApiSecret: true,
+        webhookSecret: true,
+      },
+    });
+    if (!tenant) {
+      return reply.code(404).send({ error: "Tenant not found" });
+    }
+    if (!tenant.erpApiKey || !tenant.erpApiSecret || !tenant.erpSite) {
+      return reply.code(503).send({ error: "ERP credentials not yet provisioned" });
+    }
+    return reply.send({
+      erpSite: tenant.erpSite,
+      erpApiKey: tenant.erpApiKey,
+      erpApiSecret: tenant.erpApiSecret,
+      webhookSecret: tenant.webhookSecret ?? null,
+    });
+  }
+);
+
+// DELETE /tenants/:id — removes DB records for a tenant and all related data.
+// Does NOT deprovision the Frappe site; use the bench agent for that separately.
+app.delete(
+  "/tenants/:id",
+  { preHandler: [requireInternalApiKey] },
+  async (req, reply) => {
+    const parsed = GetTenantParamsSchema.safeParse(req.params ?? {});
+    if (!parsed.success) {
+      return reply.code(422).send({
+        error: "Invalid request parameters",
+        details: parsed.error.flatten(),
+      });
+    }
+    const tenant = await prisma.tenant.findUnique({ where: { id: parsed.data.id } });
+    if (!tenant) {
+      return reply.code(404).send({ error: "Tenant not found" });
+    }
+
+    const jobs = await prisma.provisioningJob.findMany({
+      where: { tenantId: parsed.data.id },
+      select: { id: true },
+    });
+    const jobIds = jobs.map((j) => j.id);
+
+    await prisma.$transaction([
+      prisma.provisioningStepRun.deleteMany({ where: { jobId: { in: jobIds } } }),
+      prisma.provisioningJob.deleteMany({ where: { tenantId: parsed.data.id } }),
+      prisma.tenantDomain.deleteMany({ where: { tenantId: parsed.data.id } }),
+      prisma.tenant.delete({ where: { id: parsed.data.id } }),
+    ]);
+
+    return reply.code(204).send();
   }
 );
 
@@ -57,7 +199,17 @@ app.post(
       });
     }
 
-    const { slug, plan, region } = parsed.data;
+    const { slug, plan, region, language, dateFormat, currencyPrecision, companyName, companyAbbr, country } = parsed.data;
+    let { defaultCurrency, timezone, fiscalYearStartMonth } = parsed.data;
+
+    // Derive locale fields from country defaults; caller-supplied values take precedence.
+    const countryDefaults = getCountryDefaults(country);
+    if (!defaultCurrency)               defaultCurrency        = countryDefaults.currency;
+    if (!timezone)                      timezone               = countryDefaults.timezone;
+    if (fiscalYearStartMonth === undefined) fiscalYearStartMonth = countryDefaults.fiscalYearStartMonth;
+
+    const fiscalYearName      = deriveFiscalYearName(fiscalYearStartMonth);
+    const regionalSetupModule = countryDefaults.regionalSetupModule ?? null;
     const idem = (req as typeof req & { idempotency?: IdempotencyContext }).idempotency;
     const lockKey = `tenant:${slug}:lock`;
 
@@ -111,6 +263,17 @@ app.post(
             plan,
             region,
             status: TenantStatus.provisioning,
+            country,
+            defaultCurrency,
+            timezone,
+            language,
+            dateFormat,
+            currencyPrecision,
+            companyName,
+            companyAbbr,
+            fiscalYearStartMonth,
+            fiscalYearName,
+            regionalSetupModule,
           },
         });
 
@@ -239,6 +402,12 @@ app.post(
         jobId: result.jobId,
         queueJobId: queueJob.id,
         status: ProvisioningStatus.queued,
+        slug,
+        country,
+        defaultCurrency,
+        timezone,
+        fiscalYearStartMonth,
+        fiscalYearName,
       };
     } catch (error) {
       if (idem) {
