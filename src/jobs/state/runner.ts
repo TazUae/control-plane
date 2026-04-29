@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import bcrypt from "bcryptjs";
 import { Prisma, ProvisioningStatus, TenantStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { StepRunStatus } from "../../lib/step-run-status.js";
@@ -11,12 +12,15 @@ import {
   isProvisioningError,
   ProvisioningError,
 } from "../../lib/provisioning/errors.js";
+import type { FitdeskPayload, SmokeTestPayload } from "../../lib/provisioning/interface.js";
 import { assertValidSlugOrSite } from "../../lib/validation.js";
 import { shouldRetryProvisioningError } from "./retry-policy.js";
 import { env } from "../../config/env.js";
 import type { ProvisioningCallContext } from "../../lib/provisioning/interface.js";
+import { deriveFiscalYearName } from "../../lib/country-defaults.js";
 
 const MAX_RETRIES = 3;
+
 
 type RunProvisioningOptions = {
   queueJobId?: string;
@@ -177,7 +181,9 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
           });
 
           if (step === "site_created") {
-            const result = await adapter.createSite(siteName, ctx);
+            const adminPassword = crypto.randomBytes(32).toString("hex");
+            const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
+            const result = await adapter.createSite(siteName, adminPassword, ctx);
             let dbName = result.dbName?.trim();
 
             if (!dbName && adapter.resolveSiteDbName) {
@@ -195,7 +201,10 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
             const existingRow = await prisma.tenant.findUnique({ where: { id: tenant.id } });
             const existingDb = existingRow?.erpDbName ?? null;
 
-            const tenantUpdate: { erpSite: string; erpDbName?: string } = { erpSite: siteName };
+            const tenantUpdate: { erpSite: string; erpDbName?: string; adminPasswordHash?: string } = {
+              erpSite: siteName,
+              adminPasswordHash,
+            };
             if (dbName) {
               if (!existingDb || existingDb === dbName) {
                 tenantUpdate.erpDbName = dbName;
@@ -241,12 +250,292 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
             await adapter.installErp(siteName, ctx);
           } else if (step === "scheduler_enabled") {
             await adapter.enableScheduler(siteName, ctx);
-          } else if (step === "domain_registered") {
-            await adapter.addDomain(siteName, ctx);
+          } else if (step === "locale_configured") {
+            if (tenant.country && tenant.defaultCurrency && tenant.timezone) {
+              await adapter.setupLocale(
+                siteName,
+                {
+                  country: tenant.country,
+                  defaultCurrency: tenant.defaultCurrency,
+                  timezone: tenant.timezone,
+                  language: tenant.language,
+                  dateFormat: tenant.dateFormat,
+                  currencyPrecision: tenant.currencyPrecision,
+                },
+                ctx
+              );
+            } else {
+              logger.warn(
+                {
+                  ...stepLog,
+                  metric: "locale_configured_skipped",
+                  value: 1,
+                  country: tenant.country ?? null,
+                  defaultCurrency: tenant.defaultCurrency ?? null,
+                  timezone: tenant.timezone ?? null,
+                },
+                "locale_configured: tenant missing country/currency/timezone; step skipped (no locale data at creation time)"
+              );
+            }
+          } else if (step === "company_created") {
+            if (tenant.companyName && tenant.companyAbbr && tenant.country && tenant.defaultCurrency) {
+              await adapter.setupCompany(
+                siteName,
+                {
+                  companyName: tenant.companyName,
+                  companyAbbr: tenant.companyAbbr,
+                  country: tenant.country,
+                  defaultCurrency: tenant.defaultCurrency,
+                },
+                ctx
+              );
+            } else {
+              logger.warn(
+                {
+                  ...stepLog,
+                  metric: "company_created_skipped",
+                  value: 1,
+                  companyName: tenant.companyName ?? null,
+                  companyAbbr: tenant.companyAbbr ?? null,
+                },
+                "company_created: tenant missing companyName/companyAbbr; step skipped"
+              );
+            }
+          } else if (step === "fiscal_year_created") {
+            if (tenant.companyName) {
+              await adapter.setupFiscalYear(
+                siteName,
+                {
+                  companyName: tenant.companyName,
+                  fiscalYearStartMonth: tenant.fiscalYearStartMonth,
+                  companyAbbr: tenant.companyAbbr ?? "",
+                },
+                ctx
+              );
+            } else {
+              logger.warn(
+                { ...stepLog, metric: "fiscal_year_created_skipped", value: 1 },
+                "fiscal_year_created: tenant missing companyName; step skipped"
+              );
+            }
+          } else if (step === "global_defaults_set") {
+            if (tenant.companyName && tenant.defaultCurrency && tenant.country) {
+              // Prefer the fiscalYearName stored at tenant creation time; fall back to
+              // deriving it from fiscalYearStartMonth for older tenants that predate this field.
+              const fyName = tenant.fiscalYearName ?? deriveFiscalYearName(tenant.fiscalYearStartMonth);
+              await adapter.setupGlobalDefaults(
+                siteName,
+                {
+                  companyName: tenant.companyName,
+                  defaultCurrency: tenant.defaultCurrency,
+                  fiscalYearName: fyName,
+                  country: tenant.country,
+                },
+                ctx
+              );
+            } else {
+              logger.warn(
+                {
+                  ...stepLog,
+                  metric: "global_defaults_set_skipped",
+                  value: 1,
+                  companyName: tenant.companyName ?? null,
+                  defaultCurrency: tenant.defaultCurrency ?? null,
+                  country: tenant.country ?? null,
+                },
+                "global_defaults_set: tenant missing companyName/defaultCurrency/country; step skipped"
+              );
+            }
+          } else if (step === "setup_completed") {
+            if (tenant.companyName) {
+              await adapter.setupComplete(
+                siteName,
+                { companyName: tenant.companyName },
+                ctx
+              );
+            } else {
+              logger.warn(
+                { ...stepLog, metric: "setup_completed_skipped", value: 1 },
+                "setup_completed: tenant missing companyName; step skipped"
+              );
+            }
+          } else if (step === "regional_setup") {
+            // Non-fatal: regional module may not exist for all countries.
+            // Errors are swallowed here; the Python function itself never raises,
+            // but transport errors (network, timeout) could still throw.
+            if (tenant.country && tenant.companyName) {
+              try {
+                const regionalResult = await adapter.setupRegional(
+                  siteName,
+                  {
+                    country: tenant.country,
+                    companyName: tenant.companyName,
+                    companyAbbr: tenant.companyAbbr ?? "",
+                  },
+                  ctx
+                );
+                logger.info(
+                  { ...stepLog, stdout: regionalResult.stdout },
+                  "regional_setup completed (non-fatal)"
+                );
+              } catch (regionalError) {
+                logger.warn(
+                  {
+                    ...stepLog,
+                    err: regionalError instanceof Error ? regionalError.message : String(regionalError),
+                    metric: "regional_setup_failed",
+                    value: 1,
+                  },
+                  "regional_setup failed (non-fatal, continuing)"
+                );
+              }
+            } else {
+              logger.warn(
+                { ...stepLog, metric: "regional_setup_skipped", value: 1 },
+                "regional_setup: tenant missing country/companyName; step skipped"
+              );
+            }
+          } else if (step === "domains_activated") {
+            // Non-fatal: domain/module activation failures must not block provisioning.
+            if (tenant.companyName) {
+              try {
+                const domainsResult = await adapter.setupDomains(
+                  siteName,
+                  { companyName: tenant.companyName },
+                  ctx
+                );
+                logger.info(
+                  { ...stepLog, stdout: domainsResult.stdout },
+                  "domains_activated completed (non-fatal)"
+                );
+              } catch (domainsError) {
+                logger.warn(
+                  {
+                    ...stepLog,
+                    err: domainsError instanceof Error ? domainsError.message : String(domainsError),
+                    metric: "domains_activated_failed",
+                    value: 1,
+                  },
+                  "domains_activated failed (non-fatal, continuing)"
+                );
+              }
+            } else {
+              logger.warn(
+                { ...stepLog, metric: "domains_activated_skipped", value: 1 },
+                "domains_activated: tenant missing companyName; step skipped"
+              );
+            }
+          } else if (step === "fitdesk_configured") {
+            // Non-fatal: FitDesk schema setup failure must not block tenant activation.
+            if (tenant.companyName) {
+              try {
+                // Lazily generate a per-tenant webhook secret on first provisioning.
+                let webhookSecret = tenant.webhookSecret;
+                if (!webhookSecret) {
+                  webhookSecret = crypto.randomBytes(32).toString("hex");
+                  await prisma.tenant.update({
+                    where: { id: tenant.id },
+                    data: { webhookSecret },
+                  });
+                  tenant = { ...tenant, webhookSecret };
+                  logger.info({ ...stepLog }, "Generated and stored webhook secret for tenant");
+                }
+
+                const fitdeskPayload: FitdeskPayload = {
+                  companyName: tenant.companyName,
+                  companyAbbr: tenant.companyAbbr ?? "",
+                  ...(env.CONTROL_PLANE_PUBLIC_URL
+                    ? {
+                        controlPlaneWebhookUrl: `${env.CONTROL_PLANE_PUBLIC_URL}/webhooks/invoice-submitted`,
+                        controlPlaneWebhookSecret: webhookSecret,
+                      }
+                    : {}),
+                };
+                const fitdeskResult = await adapter.setupFitdesk(siteName, fitdeskPayload, ctx);
+                logger.info(
+                  { ...stepLog, stdout: fitdeskResult.stdout },
+                  "fitdesk_configured completed (non-fatal)"
+                );
+              } catch (fitdeskError) {
+                logger.warn(
+                  {
+                    ...stepLog,
+                    err: fitdeskError instanceof Error ? fitdeskError.message : String(fitdeskError),
+                    metric: "fitdesk_configured_failed",
+                    value: 1,
+                  },
+                  "fitdesk_configured failed (non-fatal, continuing)"
+                );
+              }
+            } else {
+              logger.warn(
+                { ...stepLog, metric: "fitdesk_configured_skipped", value: 1 },
+                "fitdesk_configured: tenant missing companyName; step skipped"
+              );
+            }
           } else if (step === "api_keys_generated") {
-            await adapter.createApiUser(siteName, ctx);
+            const apiResult = await adapter.createApiUser(siteName, ctx);
+            // Sync the full role set — non-fatal so credential storage always proceeds.
+            try {
+              const rolesResult = await adapter.setupRoles(siteName, ctx);
+              logger.info(
+                { ...stepLog, stdout: rolesResult.stdout },
+                "setupRoles completed (non-fatal)"
+              );
+            } catch (rolesError) {
+              logger.warn(
+                {
+                  ...stepLog,
+                  err: rolesError instanceof Error ? rolesError.message : String(rolesError),
+                  metric: "setup_roles_failed",
+                  value: 1,
+                },
+                "setupRoles failed (non-fatal, continuing)"
+              );
+            }
+            if (apiResult.apiKey && apiResult.apiSecret) {
+              await prisma.tenant.update({
+                where: { id: tenant.id },
+                data: { erpApiKey: apiResult.apiKey, erpApiSecret: apiResult.apiSecret },
+              });
+              logger.info({ ...stepLog }, "ERP API credentials persisted");
+              tenant = { ...tenant, erpApiKey: apiResult.apiKey, erpApiSecret: apiResult.apiSecret };
+            } else {
+              logger.warn({ ...stepLog }, "createApiUser completed but no API credentials returned; ERP proxy will not work until re-provisioned");
+            }
           } else if (step === "warmup_completed") {
             await adapter.healthCheck(siteName, ctx);
+          } else if (step === "smoke_test_passed") {
+            // Non-fatal: smoke test failure must not block the tenant from being marked active.
+            if (tenant.erpApiKey && tenant.erpApiSecret && tenant.companyName) {
+              try {
+                const smokePayload: SmokeTestPayload = {
+                  companyName: tenant.companyName,
+                  apiKey: tenant.erpApiKey,
+                  apiSecret: tenant.erpApiSecret,
+                };
+                const smokeResult = await adapter.runSmokeTest(siteName, smokePayload, ctx);
+                logger.info(
+                  { ...stepLog, stdout: smokeResult.stdout },
+                  "smoke_test_passed completed"
+                );
+              } catch (smokeError) {
+                logger.warn(
+                  {
+                    ...stepLog,
+                    err: smokeError instanceof Error ? smokeError.message : String(smokeError),
+                    metric: "smoke_test_failed",
+                    value: 1,
+                  },
+                  "smoke_test_passed failed (non-fatal, continuing)"
+                );
+              }
+            } else {
+              logger.warn(
+                { ...stepLog, metric: "smoke_test_skipped", value: 1 },
+                "smoke_test_passed: tenant missing API credentials or companyName; step skipped"
+              );
+            }
           } else {
             throw new ProvisioningError("ERP_VALIDATION_FAILED", `Unknown provisioning step: ${step}`, {
               retryable: false,

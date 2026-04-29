@@ -2,7 +2,15 @@ export const steps = [
   "site_created",
   "erp_installed",
   "scheduler_enabled",
-  "domain_registered",
+  "locale_configured",
+  "company_created",
+  "fiscal_year_created",
+  "global_defaults_set",
+  "setup_completed",
+  "regional_setup",
+  "domains_activated",
+  "fitdesk_configured",
   "api_keys_generated",
-  "warmup_completed"
+  "warmup_completed",
+  "smoke_test_passed",
 ] as const;

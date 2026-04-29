@@ -1,0 +1,1 @@
+ALTER TABLE "Tenant" ADD COLUMN "fiscalYearStartMonth" INTEGER NOT NULL DEFAULT 1;

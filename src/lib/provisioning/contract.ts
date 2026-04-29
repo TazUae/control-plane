@@ -69,6 +69,10 @@ export const ProvisioningOperationResultSchema = z.object({
   stdout: z.string().optional(),
   stderr: z.string().optional(),
   durationMs: z.number().int().nonnegative().optional(),
+  /** ERP API credentials returned by the createApiUser step. */
+  apiKey: z.string().optional(),
+  apiSecret: z.string().optional(),
+  user: z.string().optional(),
 });
 
 export type ProvisioningOperationResult = z.infer<typeof ProvisioningOperationResultSchema>;
