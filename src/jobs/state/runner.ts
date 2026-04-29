@@ -473,6 +473,8 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
                 "fitdesk_configured: tenant missing companyName; step skipped"
               );
             }
+          } else if (step === "app_installed_fitdesk") {
+            await adapter.installFitdesk(siteName, ctx);
           } else if (step === "api_keys_generated") {
             const apiResult = await adapter.createApiUser(siteName, ctx);
             // Sync the full role set — non-fatal so credential storage always proceeds.

@@ -10,6 +10,7 @@ export const steps = [
   "regional_setup",
   "domains_activated",
   "fitdesk_configured",
+  "app_installed_fitdesk",
   "api_keys_generated",
   "warmup_completed",
   "smoke_test_passed",
