@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { Agent } from "undici";
 import { ProvisioningError } from "./errors.js";
 
 const timestamp = "2026-04-01T15:00:00.000Z";
@@ -44,6 +45,33 @@ test("createSite POST body includes siteName, domain, apiUsername, adminPassword
     apiUsername: "cp_acme",
     adminPassword: "random-admin-pw",
   });
+});
+
+test("createSite passes undici dispatcher aligned to timeoutMs", async () => {
+  const HttpProvisioningAdapter = await loadHttpAdapter();
+  let capturedInit: RequestInit | undefined;
+  const adapter = new HttpProvisioningAdapter({
+    timeoutMs: 123_456,
+    fetchFn: async (_url, init) => {
+      capturedInit = init;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            action: "createSite",
+            site: "acme",
+            outcome: "applied",
+          },
+          timestamp,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    },
+  });
+  await adapter.createSite("acme", "test-admin-pw");
+  const withDispatcher = capturedInit as RequestInit & { dispatcher?: unknown };
+  assert.ok(withDispatcher.dispatcher instanceof Agent);
+  assert.equal((adapter as any).dispatcherTimeoutMs, 123_456);
 });
 
 test("maps structured non-retryable remote failure into ProvisioningError", async () => {
