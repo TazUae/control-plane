@@ -1,3 +1,4 @@
+import { Agent } from "undici";
 import { env } from "../../config/env.js";
 import { logger } from "../logger.js";
 import { assertValidSlugOrSite } from "../validation.js";
@@ -12,6 +13,7 @@ import { ProvisioningError } from "./errors.js";
 import { CompanyPayload, DomainsPayload, FiscalYearPayload, FitdeskPayload, GlobalDefaultsPayload, LocalePayload, ProvisioningAdapter, ProvisioningCallContext, ProvisioningOperationResult, RegionalSetupPayload, SetupCompletePayload, SmokeTestPayload } from "./interface.js";
 
 type FetchLike = typeof fetch;
+type FetchInitWithDispatcher = RequestInit & { dispatcher?: Agent };
 
 /** Test-only overrides; production uses `PROVISIONING_API_URL` and related env keys only. */
 type HttpProvisioningAdapterOptions = {
@@ -27,11 +29,18 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly fetchFn: FetchLike;
+  private readonly dispatcher: Agent;
+  private readonly dispatcherTimeoutMs: number;
 
   constructor(options: HttpProvisioningAdapterOptions = {}) {
     this.baseUrl = env.PROVISIONING_API_URL.replace(/\/+$/, "");
     this.timeoutMs = options.timeoutMs ?? env.PROVISIONING_API_TIMEOUT_MS;
     this.fetchFn = options.fetchFn ?? fetch;
+    this.dispatcherTimeoutMs = this.timeoutMs;
+    this.dispatcher = new Agent({
+      headersTimeout: this.dispatcherTimeoutMs,
+      bodyTimeout: this.dispatcherTimeoutMs,
+    });
   }
 
   async createSite(site: string, adminPassword: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
@@ -450,12 +459,14 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
         ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
         ...(ctx?.requestId ? { "x-request-id": ctx.requestId } : {}),
       };
-      const response = await this.fetchFn(url, {
+      const init: FetchInitWithDispatcher = {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
-      });
+        dispatcher: this.dispatcher,
+      };
+      const response = await this.fetchFn(url, init);
 
       const rawText = await response.text();
       const parsedBody = this.tryParseJson(rawText);
