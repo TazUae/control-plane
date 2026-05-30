@@ -20,5 +20,10 @@ If the stub app is deployed instead of the canonical one, provisioning breaks. D
 4. **Remove duplicates:** delete the branch-snapshot copies (see the previously-provided, still-deferred `rm -rf` list) **only after** confirming no unmerged work via `diff`.
 5. **Guardrail:** add a doc/CI check asserting a single `provisioning_api` source of truth.
 
+## Deploy-path confirmation (this run)
+Confirmed via `bench-agent/Dockerfile` (lines ~6-29): the bench image **bakes the top-level `../provisioning_api`** into `/home/frappe/frappe-bench/apps/provisioning_api` for `bench install-app provisioning_api` (built from the repo root so the context includes `../provisioning_api`). **→ The top-level `provisioning_api/` is the canonical, deployed app**, consistent with the method-existence evidence.
+
+**Verify before consolidating:** `erp-execution-service/docker-compose.dokploy.yml:27` sets `ERP_METHOD_CREATE_SITE=provisioning_api.api.provisioning.create_site`. Confirm `api/provisioning.create_site` exists in the **canonical top-level** app — if that method currently lives only in the `erp-execution-service/provisioning_api` stub, the deployed app may be missing a configured entrypoint (a real consolidation gap; fold it into the canonical app). No directories were deleted/renamed this run.
+
 ## Risks
 - Deleting a copy that's actually deployed, or that holds unmerged DocType/server-script changes, would break provisioning. Confirm the deploy path and diff every copy before any removal (separate, approved step).
