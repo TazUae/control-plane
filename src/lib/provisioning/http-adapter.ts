@@ -53,7 +53,11 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
       adminPassword,
     };
     const url = `${this.baseUrl}/sites/create`;
-    logger.info({ url, payload }, "Calling provisioning API");
+    // Do NOT log the full payload — it contains adminPassword. Log only non-secret fields.
+    logger.info(
+      { url, siteName, domain: payload.domain, apiUsername: payload.apiUsername },
+      "Calling provisioning API"
+    );
     const json = await this.request("POST", "/sites/create", payload, ctx, { provisioningApiDetailedLogs: true });
     const success = SiteOperationSuccessEnvelopeSchema.safeParse(json);
     if (!success.success) {
