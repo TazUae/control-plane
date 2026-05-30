@@ -36,3 +36,15 @@ A read-only DB/backup leak, a logged query, or one leaked `CONTROL_PLANE_API_KEY
 - Approval-gated (schema + secret handling). Must be staged; never a single big-bang migration.
 - Rollback during transition = keep plaintext columns until Migration B; revert reads to plaintext.
 - Verify the lazy webhook-secret generation and the smoke-test path (`runner.ts` passes apiKey/apiSecret to the provisioning adapter) still work through the accessor.
+
+## Design-readiness check (this run — NO schema/data change made)
+Verified against current `origin/main`: `erpApiKey` (`schema.prisma:40`), `erpApiSecret` (`:41`), `webhookSecret` (`:57`) are plaintext `String?`; `adminPasswordHash` (`:42`) already hashed (out of scope). Go/no-go gates before any migration:
+- [ ] **Key source:** `ERP_CRED_ENC_KEY` (32-byte base64) in the Dokploy secret store; `env.ts` fail-closed in production.
+- [ ] **AEAD util** `seal/open` (AES-256-GCM, `v1:` version prefix) merged + unit-tested (round-trip + tamper-detect) BEFORE any data is touched.
+- [ ] **Accessor** `getTenantCreds/setTenantCreds` is the sole reader/writer of the credential columns (refactor the 4 read + 1 write sites).
+- [ ] **Dual-write + dual-read** deployed (prefer `*Enc`, fall back to plaintext) and verified live before backfill.
+- [ ] **Backfill** script idempotent + dry-run first; rehearse on a DB snapshot/copy.
+- [ ] **Rollback** rehearsed: keep plaintext columns until a separate Migration B; reads revert cleanly.
+- [ ] **Tests** green: round-trip, accessor reads legacy plaintext mid-transition, webhook-secret lazy-gen + smoke-test path unaffected.
+
+**Decision: NO-GO for data migration in an automated run.** This is schema + secret handling (approval-gated, irreversible if mishandled) — execute as a human-supervised, staged rollout.
