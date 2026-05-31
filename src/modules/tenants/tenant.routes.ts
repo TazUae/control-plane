@@ -15,6 +15,7 @@ import { logger } from "../../lib/logger.js";
 import { writeAuditEvent } from "../../lib/audit.js";
 import { getCountryDefaults, deriveFiscalYearName } from "../../lib/country-defaults.js";
 import { getProvisioningAdapter } from "../../lib/provisioning/index.js";
+import { readTenantErpCredentials } from "../../lib/tenant-credentials.js";
 
 app.get(
   "/tenants",
@@ -52,7 +53,9 @@ app.post(
       return reply.code(404).send({ error: "Tenant not found" });
     }
 
-    if (!tenant.erpApiKey || !tenant.erpApiSecret || !tenant.companyName) {
+    // Phase B: read through the accessor (encrypted-primary, plaintext fallback).
+    const creds = readTenantErpCredentials(tenant);
+    if (!creds.erpApiKey || !creds.erpApiSecret || !tenant.companyName) {
       return reply.code(422).send({
         error: "Tenant not yet fully provisioned (missing API credentials or company name)",
       });
@@ -66,8 +69,8 @@ app.post(
         siteName,
         {
           companyName: tenant.companyName,
-          apiKey: tenant.erpApiKey,
-          apiSecret: tenant.erpApiSecret,
+          apiKey: creds.erpApiKey,
+          apiSecret: creds.erpApiSecret,
         },
         { tenantId: tenant.id }
       );
@@ -125,19 +128,25 @@ app.get(
         erpApiKey: true,
         erpApiSecret: true,
         webhookSecret: true,
+        erpApiKeyEnc: true,
+        erpApiSecretEnc: true,
+        webhookSecretEnc: true,
       },
     });
     if (!tenant) {
       return reply.code(404).send({ error: "Tenant not found" });
     }
-    if (!tenant.erpApiKey || !tenant.erpApiSecret || !tenant.erpSite) {
+    // Phase B: return DECRYPTED credentials (encrypted-primary, plaintext fallback).
+    // Never return the ciphertext (*Enc) columns in the response.
+    const creds = readTenantErpCredentials(tenant);
+    if (!creds.erpApiKey || !creds.erpApiSecret || !tenant.erpSite) {
       return reply.code(503).send({ error: "ERP credentials not yet provisioned" });
     }
     return reply.send({
       erpSite: tenant.erpSite,
-      erpApiKey: tenant.erpApiKey,
-      erpApiSecret: tenant.erpApiSecret,
-      webhookSecret: tenant.webhookSecret ?? null,
+      erpApiKey: creds.erpApiKey,
+      erpApiSecret: creds.erpApiSecret,
+      webhookSecret: creds.webhookSecret ?? null,
     });
   }
 );

@@ -6,6 +6,7 @@ import { logger } from "../../lib/logger.js";
 import { writeAuditEvent } from "../../lib/audit.js";
 import { hashPayload } from "../../middleware/idempotency.js";
 import { env } from "../../config/env.js";
+import { readTenantErpCredentials } from "../../lib/tenant-credentials.js";
 
 /**
  * C1 — Signed invoice webhook receiver.
@@ -59,9 +60,12 @@ app.post("/webhooks/invoice-submitted", async (req, reply) => {
   // 3. Resolve tenant by slug; fail closed (and do not reveal tenant existence).
   const tenant = await prisma.tenant.findUnique({
     where: { slug: body.tenant_slug },
-    select: { id: true, webhookSecret: true },
+    select: { id: true, webhookSecret: true, webhookSecretEnc: true },
   });
-  if (!tenant || !tenant.webhookSecret || !secretsMatch(provided, tenant.webhookSecret)) {
+  // Phase B: resolve the expected secret via the accessor (encrypted-primary,
+  // plaintext fallback). Legacy plaintext tenants and encrypted tenants both work.
+  const expectedSecret = tenant ? readTenantErpCredentials(tenant).webhookSecret : null;
+  if (!tenant || !expectedSecret || !secretsMatch(provided, expectedSecret)) {
     return reply.code(401).send({ ok: false, error: "unauthorized" });
   }
 
