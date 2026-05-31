@@ -1,6 +1,11 @@
-# C1 — Payment/invoice webhook receiver + verification hardening (PLAN ONLY)
+# C1 — Payment/invoice webhook receiver + verification hardening
 
-**Status:** Plan only. The webhook **receiver module does not exist on `origin/main`**, so per the "do not invent a large replacement module" rule it is **not implemented** here. This is net-new feature work (with a security-critical verification design), not an extraction.
+> **AS-BUILT CORRECTION (supersedes the "PLAN ONLY" framing below).**
+> The receiver **is now implemented and merged**: `POST /webhooks/invoice-submitted` (PR #9), made **fail-visible** in PR #10.
+> - **Actual `invoice-submitted` contract = `X-Webhook-Secret` shared per-tenant secret** (constant-time compared), **NOT HMAC**. The canonical ERP server script (`provisioning_api/.../fitdesk_setup.py:_create_whatsapp_server_script`) sends the raw secret in that header and does **not** sign the body. The HMAC-over-raw-body / `X-Whish-Signature` design described below applies to the **future Whish `payment-confirmed`** event, not to `invoice-submitted`.
+> - **Current behavior is intentional:** with `INVOICE_WEBHOOK_NOTIFY_ENABLED=false` (default), a valid invoice webhook returns **503** (not 200) so the ERP script does not mark `custom_whatsapp_sent=1` before a real notification is sent. See `docs/audit/invoice-notification-pipeline.md` for the remaining work + ownership decision.
+
+**Original status (historical):** Plan only — the receiver module did not exist on `origin/main` when this section was written.
 
 ## Critical finding — secret plumbing exists, receiver is missing
 On current `origin/main`:
