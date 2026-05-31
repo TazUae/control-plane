@@ -12,7 +12,10 @@
     "start": "node dist/src/server.js",
     "start:worker": "node dist/scripts/worker.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "credentials:backfill:dry-run": "tsx scripts/backfill-tenant-credentials.ts",
+    "credentials:backfill:verify": "tsx scripts/backfill-tenant-credentials.ts --verify",
+    "credentials:backfill:apply": "tsx scripts/backfill-tenant-credentials.ts --apply"
   },
   "dependencies": {
     "@fastify/cors": "^8.4.0",
