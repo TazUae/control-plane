@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 
 const SECRET = "tenant-secret-xyz-0123456789abcdef";
 const PATH = "/webhooks/invoice-submitted";
+const pendingRows = new Map<string, Record<string, unknown>>();
 
 type App = {
   inject: (o: unknown) => Promise<{ statusCode: number; json: () => any }>;
@@ -54,6 +55,19 @@ function loadApp() {
     const audits: Array<{ type: string; payload: unknown }> = [];
     Object.defineProperty(prisma, "auditEvent", {
       value: { create: async ({ data }: { data: { type: string; payload: unknown } }) => { audits.push({ type: data.type, payload: data.payload }); return { id: "a" }; } },
+      configurable: true, writable: true,
+    });
+    Object.defineProperty(prisma, "pendingPaymentNotification", {
+      value: {
+        upsert: async ({ where, create, update }: {
+          where: { tenantId_invoiceName: { tenantId: string; invoiceName: string } };
+          create: Record<string, unknown>; update: Record<string, unknown>;
+        }) => {
+          const k = `${where.tenantId_invoiceName.tenantId}:${where.tenantId_invoiceName.invoiceName}`;
+          pendingRows.set(k, pendingRows.has(k) ? { ...pendingRows.get(k), ...update } : { ...create });
+          return pendingRows.get(k);
+        },
+      },
       configurable: true, writable: true,
     });
 
@@ -117,4 +131,21 @@ test("malformed payload still → 400", async () => {
   const { app } = await loadApp();
   const res = await app.inject({ method: "POST", url: PATH, headers: H(SECRET), payload: JSON.stringify({ event: "invoice_submitted" }) });
   assert.equal(res.statusCode, 400);
+});
+
+test("flag OFF upserts a pending notification (status pending) and returns 503", async () => {
+  const { app } = await loadApp();
+  const res = await app.inject({ method: "POST", url: PATH, headers: H(SECRET), payload: body({ invoice_name: "SINV-PENDING" }) });
+  assert.equal(res.statusCode, 503);
+  const row = pendingRows.get("t1:SINV-PENDING") as { status?: string } | undefined;
+  assert.ok(row, "expected a pending notification row to be upserted");
+  assert.equal(row!.status, "pending");
+});
+
+test("repeated webhook updates the same row, no duplicate", async () => {
+  const { app } = await loadApp();
+  await app.inject({ method: "POST", url: PATH, headers: H(SECRET), payload: body({ invoice_name: "SINV-DUP", grand_total: 100 }) });
+  await app.inject({ method: "POST", url: PATH, headers: H(SECRET), payload: body({ invoice_name: "SINV-DUP", grand_total: 175 }) });
+  const keys = [...pendingRows.keys()].filter((k) => k.endsWith(":SINV-DUP"));
+  assert.equal(keys.length, 1, "repeated webhook must not create duplicate pending rows");
 });
