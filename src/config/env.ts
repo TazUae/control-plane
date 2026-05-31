@@ -83,6 +83,34 @@ const EnvSchema = z.object({
   WHISH_MONEY_API_KEY: z.string().min(1).optional(),
   /** HMAC secret used to verify inbound payment-confirmed webhooks from Whish Money. */
   WHISH_MONEY_WEBHOOK_SECRET: z.string().min(1).optional(),
+
+  // H1: tenant ERP credential encryption at rest (AES-256-GCM).
+  // Optional; if provided it MUST base64-decode to exactly 32 bytes.
+  ERP_CREDENTIAL_ENCRYPTION_KEY: z
+    .string()
+    .refine((v) => {
+      try {
+        return Buffer.from(v, "base64").length === 32;
+      } catch {
+        return false;
+      }
+    }, "ERP_CREDENTIAL_ENCRYPTION_KEY must be base64 of exactly 32 bytes")
+    .optional(),
+  // Feature flag for credential encryption dual-write (Phase B). Default off.
+  ERP_CREDENTIAL_ENCRYPTION_ENABLED: z
+    .union([z.literal("true"), z.literal("false")])
+    .default("false")
+    .transform((v) => v === "true"),
+}).superRefine((val, ctx) => {
+  // Fail closed: encryption must not be enabled without a valid key present.
+  if (val.ERP_CREDENTIAL_ENCRYPTION_ENABLED && !val.ERP_CREDENTIAL_ENCRYPTION_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["ERP_CREDENTIAL_ENCRYPTION_KEY"],
+      message:
+        "ERP_CREDENTIAL_ENCRYPTION_KEY is required when ERP_CREDENTIAL_ENCRYPTION_ENABLED=true",
+    });
+  }
 });
 
 // Strip empty strings so optional() fields behave as absent when set to "" via
