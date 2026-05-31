@@ -60,6 +60,7 @@ model Tenant {
 
   domains   TenantDomain[]
   jobs      ProvisioningJob[]
+  pendingPaymentNotifications PendingPaymentNotification[]
 }
 
 model TenantDomain {
@@ -129,4 +130,28 @@ model AuditEvent {
   tenantId  String?
   payload   Json
   createdAt DateTime @default(now())
+}
+
+/// Trainer-facing workflow state: an invoice-submitted webhook recorded a payment
+/// notification that a trainer must review and send (NOT audit history).
+model PendingPaymentNotification {
+  id           String    @id @default(uuid())
+  tenantId     String
+  invoiceName  String
+  customer     String
+  customerName String?
+  grandTotal   Decimal?
+  currency     String?
+  sessionDate  String?
+  /// pending | sent | dismissed | failed
+  status       String    @default("pending")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sentAt       DateTime?
+  dismissedAt  DateTime?
+  lastError    String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, invoiceName])
 }
