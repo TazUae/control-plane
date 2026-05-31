@@ -70,6 +70,28 @@ app.post("/webhooks/invoice-submitted", async (req, reply) => {
   //     customer's payment notification. Authenticate + audit "pending", then return 503 —
   //     and do NOT write an idempotency key, so retries are processed once enabled.
   if (!env.INVOICE_WEBHOOK_NOTIFY_ENABLED) {
+    // Persist/refresh the trainer-facing pending notification (workflow state, not audit).
+    // Upsert keeps a single row per (tenant, invoice); `status` is only set on create, so a
+    // row already moved to sent/dismissed is never reverted by a later webhook delivery.
+    await prisma.pendingPaymentNotification.upsert({
+      where: { tenantId_invoiceName: { tenantId: tenant.id, invoiceName: body.invoice_name } },
+      create: {
+        id: crypto.randomUUID(),
+        tenantId: tenant.id,
+        invoiceName: body.invoice_name,
+        customer: body.customer ?? "",
+        customerName: body.customer_name ?? null,
+        grandTotal: body.grand_total ?? null,
+        sessionDate: body.custom_session_date ?? null,
+        status: "pending",
+      },
+      update: {
+        customer: body.customer ?? "",
+        customerName: body.customer_name ?? null,
+        grandTotal: body.grand_total ?? null,
+        sessionDate: body.custom_session_date ?? null,
+      },
+    });
     await writeAuditEvent({
       type: "webhook.invoice_submitted.pending",
       tenantId: tenant.id,
