@@ -56,6 +56,17 @@ const EnvSchema = z.object({
    * Example: https://cp.example.com
    */
   CONTROL_PLANE_PUBLIC_URL: z.string().url().optional(),
+  /**
+   * Feature flag for the invoice-submitted webhook notification pipeline.
+   * While false (default), POST /webhooks/invoice-submitted authenticates + audits but
+   * returns 503 (not 200) — so the ERP server script does NOT mark custom_whatsapp_sent=1
+   * before a real Whish/WhatsApp notification exists (prevents silently dropping customer
+   * payment notifications). Flip to "true" only once the notification pipeline is built.
+   */
+  INVOICE_WEBHOOK_NOTIFY_ENABLED: z
+    .union([z.literal("true"), z.literal("false")])
+    .default("false")
+    .transform((v) => v === "true"),
 
   // ── Evolution API (WhatsApp) ──────────────────────────────────────────────
   /** Base URL of the Evolution API instance. Example: http://evolution:8080 */

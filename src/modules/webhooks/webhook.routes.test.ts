@@ -25,6 +25,8 @@ function loadApp(): Promise<{ app: App; audits: () => number }> {
     process.env.PROVISIONING_API_URL ??= "https://provisioning.example.com";
     process.env.PROVISIONING_API_TOKEN ??= "token-token-token-token";
     process.env.ERP_BASE_DOMAIN ??= "erp.example.com";
+    // This suite covers the flag-ENABLED accepted path (200 + durable dedupe).
+    process.env.INVOICE_WEBHOOK_NOTIFY_ENABLED = "true";
 
     const { app } = (await import("../../app.js")) as unknown as { app: App };
     try {

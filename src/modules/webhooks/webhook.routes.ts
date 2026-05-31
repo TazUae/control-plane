@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { logger } from "../../lib/logger.js";
 import { writeAuditEvent } from "../../lib/audit.js";
 import { hashPayload } from "../../middleware/idempotency.js";
+import { env } from "../../config/env.js";
 
 /**
  * C1 — Signed invoice webhook receiver.
@@ -62,6 +63,30 @@ app.post("/webhooks/invoice-submitted", async (req, reply) => {
   });
   if (!tenant || !tenant.webhookSecret || !secretsMatch(provided, tenant.webhookSecret)) {
     return reply.code(401).send({ ok: false, error: "unauthorized" });
+  }
+
+  // 3b. Fail VISIBLE until the notification pipeline exists. The ERP server script marks
+  //     custom_whatsapp_sent=1 on ANY 2xx, so returning 200 here would silently drop the
+  //     customer's payment notification. Authenticate + audit "pending", then return 503 —
+  //     and do NOT write an idempotency key, so retries are processed once enabled.
+  if (!env.INVOICE_WEBHOOK_NOTIFY_ENABLED) {
+    await writeAuditEvent({
+      type: "webhook.invoice_submitted.pending",
+      tenantId: tenant.id,
+      payload: {
+        invoice_name: body.invoice_name,
+        customer_name: body.customer_name ?? null,
+        grand_total: body.grand_total ?? null,
+        custom_session_date: body.custom_session_date ?? null,
+        tenant_slug: body.tenant_slug,
+        reason: "notification_pipeline_unavailable",
+      },
+    });
+    logger.warn(
+      { tenantId: tenant.id, invoice: body.invoice_name },
+      "invoice-submitted received but notification pipeline disabled — returning 503 (not marking sent)",
+    );
+    return reply.code(503).send({ ok: false, error: "notification_pipeline_unavailable" });
   }
 
   // 4. Replay/idempotency dedupe per (tenant, invoice). The unique `key` constraint
