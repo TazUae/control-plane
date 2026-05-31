@@ -55,6 +55,12 @@ model Tenant {
   fiscalYearName       String?
   regionalSetupModule  String?
   webhookSecret        String?
+  // H1 Phase A: encrypted-at-rest credential columns (additive; populated in Phase B).
+  // Plaintext columns above are retained until cutover (Phase D/E).
+  erpApiKeyEnc                String?
+  erpApiSecretEnc             String?
+  webhookSecretEnc            String?
+  credentialEncryptionVersion Int?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
