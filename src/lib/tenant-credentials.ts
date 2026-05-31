@@ -61,3 +61,50 @@ export function buildEncryptedCredentialWrite(input: {
   if (input.webhookSecret != null) out.webhookSecretEnc = sealSecret(input.webhookSecret);
   return out;
 }
+
+// ─── Phase B flag-gated dual-write builders ─────────────────────────────────────
+// These return the exact Prisma `data` payload for a credential write. The plaintext
+// column is ALWAYS written (unchanged legacy behavior). When `encryptionEnabled` is
+// true, the encrypted column(s) + version are added so the row is dual-written.
+// When false, the payload is byte-for-byte the legacy plaintext-only write and the
+// encryption key is never touched (no key required while disabled).
+
+export type WebhookSecretWrite = {
+  webhookSecret: string;
+  webhookSecretEnc?: string;
+  credentialEncryptionVersion?: number;
+};
+
+export function buildWebhookSecretWrite(
+  webhookSecret: string,
+  encryptionEnabled: boolean,
+): WebhookSecretWrite {
+  const out: WebhookSecretWrite = { webhookSecret };
+  if (encryptionEnabled) {
+    out.webhookSecretEnc = sealSecret(webhookSecret);
+    out.credentialEncryptionVersion = 1;
+  }
+  return out;
+}
+
+export type ErpApiCredentialWrite = {
+  erpApiKey: string;
+  erpApiSecret: string;
+  erpApiKeyEnc?: string;
+  erpApiSecretEnc?: string;
+  credentialEncryptionVersion?: number;
+};
+
+export function buildErpApiCredentialWrite(
+  apiKey: string,
+  apiSecret: string,
+  encryptionEnabled: boolean,
+): ErpApiCredentialWrite {
+  const out: ErpApiCredentialWrite = { erpApiKey: apiKey, erpApiSecret: apiSecret };
+  if (encryptionEnabled) {
+    out.erpApiKeyEnc = sealSecret(apiKey);
+    out.erpApiSecretEnc = sealSecret(apiSecret);
+    out.credentialEncryptionVersion = 1;
+  }
+  return out;
+}

@@ -16,6 +16,11 @@ import type { FitdeskPayload, SmokeTestPayload } from "../../lib/provisioning/in
 import { assertValidSlugOrSite } from "../../lib/validation.js";
 import { shouldRetryProvisioningError } from "./retry-policy.js";
 import { env } from "../../config/env.js";
+import {
+  buildWebhookSecretWrite,
+  buildErpApiCredentialWrite,
+  readTenantErpCredentials,
+} from "../../lib/tenant-credentials.js";
 import type { ProvisioningCallContext } from "../../lib/provisioning/interface.js";
 import { deriveFiscalYearName } from "../../lib/country-defaults.js";
 
@@ -433,11 +438,16 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
                 let webhookSecret = tenant.webhookSecret;
                 if (!webhookSecret) {
                   webhookSecret = crypto.randomBytes(32).toString("hex");
+                  // Phase B: always persist plaintext; additionally seal to *Enc when enabled.
+                  const webhookWrite = buildWebhookSecretWrite(
+                    webhookSecret,
+                    env.ERP_CREDENTIAL_ENCRYPTION_ENABLED,
+                  );
                   await prisma.tenant.update({
                     where: { id: tenant.id },
-                    data: { webhookSecret },
+                    data: webhookWrite,
                   });
-                  tenant = { ...tenant, webhookSecret };
+                  tenant = { ...tenant, ...webhookWrite };
                   logger.info({ ...stepLog }, "Generated and stored webhook secret for tenant");
                 }
 
@@ -496,12 +506,18 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
               );
             }
             if (apiResult.apiKey && apiResult.apiSecret) {
+              // Phase B: always persist plaintext; additionally seal to *Enc when enabled.
+              const credWrite = buildErpApiCredentialWrite(
+                apiResult.apiKey,
+                apiResult.apiSecret,
+                env.ERP_CREDENTIAL_ENCRYPTION_ENABLED,
+              );
               await prisma.tenant.update({
                 where: { id: tenant.id },
-                data: { erpApiKey: apiResult.apiKey, erpApiSecret: apiResult.apiSecret },
+                data: credWrite,
               });
               logger.info({ ...stepLog }, "ERP API credentials persisted");
-              tenant = { ...tenant, erpApiKey: apiResult.apiKey, erpApiSecret: apiResult.apiSecret };
+              tenant = { ...tenant, ...credWrite };
             } else {
               logger.warn({ ...stepLog }, "createApiUser completed but no API credentials returned; ERP proxy will not work until re-provisioned");
             }
@@ -509,12 +525,14 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
             await adapter.healthCheck(siteName, ctx);
           } else if (step === "smoke_test_passed") {
             // Non-fatal: smoke test failure must not block the tenant from being marked active.
-            if (tenant.erpApiKey && tenant.erpApiSecret && tenant.companyName) {
+            // Phase B: read through the accessor (encrypted-primary, plaintext fallback).
+            const smokeCreds = readTenantErpCredentials(tenant);
+            if (smokeCreds.erpApiKey && smokeCreds.erpApiSecret && tenant.companyName) {
               try {
                 const smokePayload: SmokeTestPayload = {
                   companyName: tenant.companyName,
-                  apiKey: tenant.erpApiKey,
-                  apiSecret: tenant.erpApiSecret,
+                  apiKey: smokeCreds.erpApiKey,
+                  apiSecret: smokeCreds.erpApiSecret,
                 };
                 const smokeResult = await adapter.runSmokeTest(siteName, smokePayload, ctx);
                 logger.info(
