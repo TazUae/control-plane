@@ -2,8 +2,13 @@ node_modules/
 dist/
 tmp/
 *.log
-erp-worker/node_modules/
-erp-worker/*.log
+
+# Sibling-service copies must never be re-tracked in this repo (repo-boundary
+# pollution cleanup — see chore/cp-remove-nested-service-copies).
+/erp-execution-service/
+/provisioning-agent/
+/erp-worker/
+/packages/erp-utils/
 
 # Local env (never commit). Copy from `.env.example` for development.
 .env
