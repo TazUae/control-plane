@@ -14,7 +14,7 @@ import {
 } from "../../lib/provisioning/errors.js";
 import type { FitdeskPayload, SmokeTestPayload } from "../../lib/provisioning/interface.js";
 import { assertValidSlugOrSite } from "../../lib/validation.js";
-import { shouldRetryProvisioningError } from "./retry-policy.js";
+import { shouldRetryProvisioningError, computeBackoffMs } from "./retry-policy.js";
 import { ensureSiteReady } from "./readiness-gate.js";
 import { env } from "../../config/env.js";
 import {
@@ -613,7 +613,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
             throw typedError;
           }
 
-          await new Promise((r) => setTimeout(r, 1000 * attempt));
+          await new Promise((r) => setTimeout(r, computeBackoffMs(attempt)));
         }
       }
     }
