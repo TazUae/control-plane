@@ -294,3 +294,58 @@ test("installFitdesk calls install-fitdesk endpoint", async () => {
   assert.equal(calledPath, "/sites/install-fitdesk");
   assert.equal(result.action, "installFitdesk");
 });
+
+test("siteReadiness GETs /sites/:site/readiness and returns the verdict", async () => {
+  const HttpProvisioningAdapter = await loadHttpAdapter();
+  let calledPath: string | undefined;
+  let calledMethod: string | undefined;
+  const adapter = new HttpProvisioningAdapter({
+    fetchFn: async (url, init) => {
+      calledPath = new URL(url.toString()).pathname;
+      calledMethod = init?.method;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            action: "siteReadiness",
+            site: "acme",
+            outcome: "applied",
+            ready: false,
+            checks: { site_config: true, core_doctypes: false, list_apps: true },
+            apps: ["frappe"],
+            reason: "missing_core_doctypes",
+          },
+          timestamp,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    },
+  });
+
+  const result = await adapter.siteReadiness("acme", { requestId: "req-1" });
+  assert.equal(calledPath, "/sites/acme/readiness");
+  assert.equal(calledMethod, "GET");
+  assert.equal(result.ready, false);
+  assert.equal(result.reason, "missing_core_doctypes");
+  assert.deepEqual(result.apps, ["frappe"]);
+});
+
+test("siteReadiness rejects an invalid readiness payload", async () => {
+  const HttpProvisioningAdapter = await loadHttpAdapter();
+  const adapter = new HttpProvisioningAdapter({
+    fetchFn: async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: { action: "siteReadiness", site: "acme", outcome: "applied" },
+          timestamp,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      ),
+  });
+  await assert.rejects(adapter.siteReadiness("acme"), (err: unknown) => {
+    assert.ok(err instanceof ProvisioningError);
+    assert.equal((err as ProvisioningError).code, "ERP_PARTIAL_SUCCESS");
+    return true;
+  });
+});

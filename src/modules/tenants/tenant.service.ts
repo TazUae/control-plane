@@ -1,5 +1,6 @@
 import type { Prisma, ProvisioningStatus, TenantStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { getStatusAwarePublicFailureMessage } from "../../lib/provisioning/safe-failure-message.js";
 
 export type TenantStepRun = {
   step: string;
@@ -38,6 +39,11 @@ export type GetTenantResult = {
     attemptCount: number;
     payload: Prisma.JsonValue | null;
     result: Prisma.JsonValue | null;
+    /**
+     * Safe, trainer-facing failure message — never raw command stderr/tracebacks.
+     * Full diagnostics remain available via `result` (and in logs/audit events)
+     * for operators.
+     */
     failureReason: string | null;
     createdAt: Date;
     finishedAt: Date | null;
@@ -111,7 +117,7 @@ export async function getTenantById(id: string): Promise<GetTenantResult | null>
         attemptCount: latestJob.attemptCount,
         payload: latestJob.payload,
         result: latestJob.result,
-        failureReason: latestJob.failureReason,
+        failureReason: getStatusAwarePublicFailureMessage(latestJob.status, latestJob.failureReason),
         createdAt: latestJob.createdAt,
         finishedAt: latestJob.finishedAt,
       }

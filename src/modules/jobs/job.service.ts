@@ -2,6 +2,7 @@ import { Prisma, ProvisioningStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { provisioningQueue } from "../../lib/queue.js";
 import { logger } from "../../lib/logger.js";
+import { getSafePublicFailureMessage } from "../../lib/provisioning/safe-failure-message.js";
 
 export type LatestStepInfo = {
   step: string;
@@ -16,7 +17,18 @@ export type GetProvisioningJobResult = {
   tenantId: string;
   status: ProvisioningStatus;
   currentStep: string;
+  /**
+   * Raw internal failure reason (may include command stderr/stack detail).
+   * Operator/internal consumption only — never render this directly in a
+   * trainer-facing UI. Full diagnostics remain in `result`, logs, and audit
+   * events regardless of this field.
+   */
   lastError: string | null;
+  /**
+   * Safe, trainer-facing failure message derived from `lastError` — never the
+   * raw text itself. Product clients (FitDesk) read this field.
+   */
+  failureReason: string | null;
   /** Structured failure payload when status is failed (agent error envelope or serialized error). */
   result: Prisma.JsonValue | null;
   createdAt: Date;
@@ -72,6 +84,7 @@ export async function getProvisioningJobById(id: string): Promise<GetProvisionin
     status: job.status,
     currentStep: job.currentStep,
     lastError: job.failureReason,
+    failureReason: getSafePublicFailureMessage(job.failureReason),
     result: job.result,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,

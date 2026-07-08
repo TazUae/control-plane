@@ -25,6 +25,18 @@ const EnvSchema = z.object({
     .default("false")
     .transform((v) => v === "true"),
   /**
+   * Readiness gate before `erp_installed`: probe the site (core tables + list-apps)
+   * and, if not ready, wait once and re-check before installing ERPNext. Guards
+   * against installing against a freshly-created, unsettled schema (MariaDB 1412).
+   * Kill switch defaults ON; set to "false" to bypass if the probe misbehaves.
+   */
+  PROVISIONING_READINESS_GATE_ENABLED: z
+    .union([z.literal("true"), z.literal("false")])
+    .default("true")
+    .transform((v) => v === "true"),
+  /** Wait (ms) between the first not-ready verdict and the single re-check. */
+  PROVISIONING_READINESS_SETTLE_MS: z.coerce.number().int().min(0).max(120_000).default(5_000),
+  /**
    * BullMQ worker concurrency per process.
    *
    * KEEP AT 1 for single-bench deployments. bench holds file-system and MariaDB

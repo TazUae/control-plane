@@ -14,7 +14,8 @@ import {
 } from "../../lib/provisioning/errors.js";
 import type { FitdeskPayload, SmokeTestPayload } from "../../lib/provisioning/interface.js";
 import { assertValidSlugOrSite } from "../../lib/validation.js";
-import { shouldRetryProvisioningError } from "./retry-policy.js";
+import { shouldRetryProvisioningError, computeBackoffMs } from "./retry-policy.js";
+import { ensureSiteReady } from "./readiness-gate.js";
 import { env } from "../../config/env.js";
 import {
   buildWebhookSecretWrite,
@@ -252,6 +253,15 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
 
             logger.info({ ...stepLog, adapterAction: result.action }, "Provisioning adapter action completed");
           } else if (step === "erp_installed") {
+            await ensureSiteReady(adapter, siteName, ctx, {
+              enabled: env.PROVISIONING_READINESS_GATE_ENABLED,
+              settleMs: env.PROVISIONING_READINESS_SETTLE_MS,
+              onWait: (reason) =>
+                logger.warn(
+                  { ...stepLog, reason: reason ?? null, metric: "provisioning_readiness_wait", value: 1 },
+                  "site not ready before erp_installed; waiting and re-checking"
+                ),
+            });
             await adapter.installErp(siteName, ctx);
           } else if (step === "scheduler_enabled") {
             await adapter.enableScheduler(siteName, ctx);
@@ -603,7 +613,7 @@ export async function runProvisioning(jobId: string, options: RunProvisioningOpt
             throw typedError;
           }
 
-          await new Promise((r) => setTimeout(r, 1000 * attempt));
+          await new Promise((r) => setTimeout(r, computeBackoffMs(attempt)));
         }
       }
     }

@@ -133,6 +133,23 @@ export type HealthResponseData = z.infer<typeof HealthResponseDataSchema>;
 export type HealthResponse = ProvisioningApiResponse<HealthResponseData>;
 
 /**
+ * GET /sites/:site/readiness response contract. Carries the bench readiness
+ * verdict on top of the standard operation fields.
+ */
+export const SiteReadinessResponseDataSchema = z.object({
+  action: z.string().min(1),
+  site: z.string().trim().min(1),
+  outcome: z.enum(["applied", "already_done"]).default("applied"),
+  ready: z.boolean(),
+  checks: z.record(z.string(), z.boolean()).optional(),
+  apps: z.array(z.string()).optional(),
+  reason: z.string().optional(),
+  dbName: z.string().trim().min(1).optional(),
+});
+
+export type SiteReadinessResponseData = z.infer<typeof SiteReadinessResponseDataSchema>;
+
+/**
  * POST /sites/* response contract reused by each provisioning action endpoint.
  */
 export const SiteOperationResponseDataSchema = ProvisioningOperationResultSchema;
