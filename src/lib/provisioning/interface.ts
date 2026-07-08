@@ -77,6 +77,15 @@ export type ProvisioningCallContext = {
   tenantId?: string;
 };
 
+/** Verdict from the site readiness probe used to gate `erp_installed`. */
+export type SiteReadinessResult = {
+  ready: boolean;
+  checks?: Record<string, boolean>;
+  apps?: string[];
+  reason?: string;
+  dbName?: string;
+};
+
 export interface ProvisioningAdapter {
   /**
    * Stable adapter identifier used by orchestration logs and diagnostics.
@@ -103,4 +112,10 @@ export interface ProvisioningAdapter {
    * Optional lazy backfill: read `db_name` from ERP `site_config.json` (HTTP provisioning API only).
    */
   resolveSiteDbName?(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult>;
+  /**
+   * Optional readiness probe (HTTP provisioning API only): confirms the site's
+   * schema has settled (core tables present + `list-apps` boots) before
+   * `erp_installed`. Adapters that don't implement it cause the gate to be skipped.
+   */
+  siteReadiness?(site: string, ctx?: ProvisioningCallContext): Promise<SiteReadinessResult>;
 }

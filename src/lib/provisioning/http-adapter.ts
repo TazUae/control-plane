@@ -7,10 +7,11 @@ import {
   HealthResponseDataSchema,
   ProvisioningFailure,
   SiteOperationResponseDataSchema,
+  SiteReadinessResponseDataSchema,
   SuccessEnvelopeSchema,
 } from "./contract.js";
 import { ProvisioningError } from "./errors.js";
-import { CompanyPayload, DomainsPayload, FiscalYearPayload, FitdeskPayload, GlobalDefaultsPayload, LocalePayload, ProvisioningAdapter, ProvisioningCallContext, ProvisioningOperationResult, RegionalSetupPayload, SetupCompletePayload, SmokeTestPayload } from "./interface.js";
+import { CompanyPayload, DomainsPayload, FiscalYearPayload, FitdeskPayload, GlobalDefaultsPayload, LocalePayload, ProvisioningAdapter, ProvisioningCallContext, ProvisioningOperationResult, RegionalSetupPayload, SetupCompletePayload, SiteReadinessResult, SmokeTestPayload } from "./interface.js";
 
 type FetchLike = typeof fetch;
 type FetchInitWithDispatcher = RequestInit & { dispatcher?: Agent };
@@ -23,6 +24,7 @@ type HttpProvisioningAdapterOptions = {
 
 const SiteOperationSuccessEnvelopeSchema = SuccessEnvelopeSchema(SiteOperationResponseDataSchema);
 const HealthSuccessEnvelopeSchema = SuccessEnvelopeSchema(HealthResponseDataSchema);
+const SiteReadinessSuccessEnvelopeSchema = SuccessEnvelopeSchema(SiteReadinessResponseDataSchema);
 
 export class HttpProvisioningAdapter implements ProvisioningAdapter {
   public readonly kind = "http-provisioning" as const;
@@ -80,6 +82,26 @@ export class HttpProvisioningAdapter implements ProvisioningAdapter {
 
   async resolveSiteDbName(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
     return this.callSiteOperation("/sites/read-db-name", "readSiteDbName", site, ctx);
+  }
+
+  async siteReadiness(site: string, ctx?: ProvisioningCallContext): Promise<SiteReadinessResult> {
+    assertValidSlugOrSite(site, "site");
+    const endpoint = `/sites/${encodeURIComponent(site)}/readiness`;
+    const json = await this.request("GET", endpoint, undefined, ctx);
+    const success = SiteReadinessSuccessEnvelopeSchema.safeParse(json);
+    if (!success.success) {
+      throw new ProvisioningError("ERP_PARTIAL_SUCCESS", "Invalid readiness response payload", {
+        details: success.error.message,
+        retryable: false,
+      });
+    }
+    return {
+      ready: success.data.data.ready,
+      checks: success.data.data.checks,
+      apps: success.data.data.apps,
+      reason: success.data.data.reason,
+      dbName: success.data.data.dbName,
+    };
   }
 
   async installErp(site: string, ctx?: ProvisioningCallContext): Promise<ProvisioningOperationResult> {
