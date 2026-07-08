@@ -1,26 +1,17 @@
 import { isProvisioningError } from "../../lib/provisioning/errors.js";
+import { matchesTransientDbSignature } from "../../lib/provisioning/transient-db-signature.js";
 
 /**
- * Transient MariaDB DDL failures (1412 table-definition-changed, 1205 lock-wait,
- * 1213 deadlock). The erp-execution-service already flips `retryable` on these,
- * but we detect them defensively here too so a not-yet-updated execution service
- * still retries instead of failing the job. Numeric codes are matched only in
- * errno context to avoid false positives.
+ * The erp-execution-service already flips `retryable` on the transient DB
+ * signature, but we detect it defensively here too so a not-yet-updated
+ * execution service still retries instead of failing the job.
  */
-const TRANSIENT_DB_PATTERNS: RegExp[] = [
-  /table definition has changed/i,
-  /lock wait timeout exceeded/i,
-  /deadlock found when trying to get lock/i,
-  /\(\s*(?:1412|1205|1213)\s*,/,
-  /errno[:=]?\s*(?:1412|1205|1213)\b/i,
-];
-
 export function isTransientProvisioningError(error: unknown): boolean {
   if (!isProvisioningError(error)) return false;
   const haystack = [error.stderr, error.stdout, error.details, error.message]
     .filter((s): s is string => typeof s === "string")
     .join("\n");
-  return TRANSIENT_DB_PATTERNS.some((re) => re.test(haystack));
+  return matchesTransientDbSignature(haystack);
 }
 
 export function shouldRetryProvisioningError(error: unknown): boolean {
