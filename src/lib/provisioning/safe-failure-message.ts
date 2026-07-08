@@ -1,3 +1,4 @@
+import type { ProvisioningStatus } from "@prisma/client";
 import { matchesTransientDbSignature } from "./transient-db-signature.js";
 
 /**
@@ -22,4 +23,27 @@ export const SAFE_UNKNOWN_FAILURE_MESSAGE =
 export function getSafePublicFailureMessage(rawReason: string | null | undefined): string | null {
   if (!rawReason) return null;
   return matchesTransientDbSignature(rawReason) ? SAFE_TRANSIENT_DB_MESSAGE : SAFE_UNKNOWN_FAILURE_MESSAGE;
+}
+
+/**
+ * Status-aware variant for callers (e.g. tenant.service.ts) that know the
+ * job's current lifecycle status, not just its stored failure text.
+ *
+ * A terminal `failed` job has exhausted retries, so even a transient-looking
+ * signature no longer means "still retrying" — showing the transient/"Retrying
+ * safely" copy there would be misleading. Terminal failures always get the
+ * deterministic contact-support message. Any non-terminal status (queued,
+ * running, enqueue_failed) reuses `getSafePublicFailureMessage` unchanged, so
+ * a recorded transient signature during an in-flight retry still reads as
+ * "Retrying safely."
+ */
+export function getStatusAwarePublicFailureMessage(
+  status: ProvisioningStatus,
+  rawReason: string | null | undefined
+): string | null {
+  if (!rawReason) return null;
+  if (status === "failed") {
+    return SAFE_UNKNOWN_FAILURE_MESSAGE;
+  }
+  return getSafePublicFailureMessage(rawReason);
 }
