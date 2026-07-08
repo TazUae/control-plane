@@ -17,6 +17,11 @@ export type GetProvisioningJobResult = {
   status: ProvisioningStatus;
   currentStep: string;
   lastError: string | null;
+  /**
+   * Alias of `lastError`. Product clients (FitDesk) read `failureReason`; without
+   * this alias the reason was dropped and the UI fell back to a generic error.
+   */
+  failureReason: string | null;
   /** Structured failure payload when status is failed (agent error envelope or serialized error). */
   result: Prisma.JsonValue | null;
   createdAt: Date;
@@ -72,6 +77,7 @@ export async function getProvisioningJobById(id: string): Promise<GetProvisionin
     status: job.status,
     currentStep: job.currentStep,
     lastError: job.failureReason,
+    failureReason: job.failureReason,
     result: job.result,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
