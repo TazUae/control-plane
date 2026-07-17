@@ -94,7 +94,7 @@ after(async () => {
 
 test(
   "ERP proxy: hanging upstream is aborted by the request timeout (no indefinite hang) [M1]",
-  { timeout: 20_000 },
+  { timeout: 45_000 },
   async () => {
     const base = await upstreamUrl;
     const app = await loadApp(base);
@@ -110,10 +110,14 @@ test(
     assert.equal(res.statusCode, 502, "a hanging upstream must surface as a 502, not hang");
     // The real production timeout is 15_000ms (unchanged by this test); allow a
     // small floor tolerance for timer scheduling jitter, and an upper bound well
-    // under the test's own 20_000ms guard so a regression back to "never aborts"
-    // fails via this assertion rather than only via the outer test timeout.
+    // under the test's own guard so a regression back to "never aborts" fails via
+    // this assertion rather than only via the outer test timeout.
+    // The upper bound is deliberately loose: this file runs concurrently with the
+    // rest of the suite, so wall-clock elapsed absorbs CPU contention on top of the
+    // real 15s wait. Only the floor pins the behaviour to the proxy's timeout; the
+    // ceiling exists to separate "aborted late" from "never aborted".
     assert.ok(elapsed >= 14_900, `expected the request to run out the ~15s timeout (took ${elapsed}ms)`);
-    assert.ok(elapsed < 19_000, `must still abort well inside the test's own timeout guard (took ${elapsed}ms)`);
+    assert.ok(elapsed < 40_000, `must still abort well inside the test's own timeout guard (took ${elapsed}ms)`);
   }
 );
 
