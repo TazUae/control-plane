@@ -9,6 +9,24 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Disposable Postgres for migration validation only. The unit suite stubs
+    # Prisma and never opens a connection, so this service is not on its path.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: control_plane_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +40,17 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Validate migrations
+        # Applies every migration to an empty database, then fails on any drift
+        # between the migration history and schema.prisma. This database is
+        # created fresh per run and thrown away; it is never a shared or
+        # production DATABASE_URL.
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/control_plane_ci
+        run: |
+          npx prisma migrate deploy
+          npx prisma migrate status
 
       - name: Build
         run: npm run build
