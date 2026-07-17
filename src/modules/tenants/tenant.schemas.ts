@@ -52,3 +52,26 @@ export const CreateTenantSchema = z.object({
 });
 
 export type CreateTenantInput = z.infer<typeof CreateTenantSchema>;
+
+// ---------------------------------------------------------------------------
+// Operating market grant / revoke (ADR-MKT-001, Phase 4)
+//
+// `market` is validated as a well-formed string here (missing/wrong-type -> 400
+// via this schema); membership in SUPPORTED_MARKETS is checked separately by
+// the route so an unsupported-but-well-formed value (e.g. "XX", "lb", "USA",
+// or "") reports 422, not 400. `verifiedBy` is a required, non-empty ASSERTED
+// operator identity — not authenticated (D16) — so empty/missing is a 400.
+// ---------------------------------------------------------------------------
+
+export const OperatingMarketGrantSchema = z.object({
+  market: z.string(),
+  verifiedBy: z.string().trim().min(1),
+});
+
+export type OperatingMarketGrantInput = z.infer<typeof OperatingMarketGrantSchema>;
+
+export const OperatingMarketRevokeSchema = z.object({
+  verifiedBy: z.string().trim().min(1),
+});
+
+export type OperatingMarketRevokeInput = z.infer<typeof OperatingMarketRevokeSchema>;
