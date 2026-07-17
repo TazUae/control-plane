@@ -61,6 +61,17 @@ model Tenant {
   erpApiSecretEnc             String?
   webhookSecretEnc            String?
   credentialEncryptionVersion Int?
+  /// Authoritative operating market. NULL = unverified (fail closed).
+  /// Deliberately SEPARATE from `country` (a locale/CoA provisioning seed).
+  /// Never derived from country, timezone, phone, locale, IP, or currency.
+  /// See FitDesk docs/adr/ADR-MKT-001-workspace-operating-market-authority.md.
+  operatingMarket           String?    // ISO 3166-1 alpha-2, e.g. "LB"
+  operatingMarketSource     String?    // only "operator_verified" is defined today
+  operatingMarketVerifiedAt DateTime?
+  /// ASSERTED operator identity -- NOT authenticated. The admin key authenticates
+  /// a service credential, not a person. Treat as a claim recorded alongside the
+  /// request, never as proof of who acted. See D16, Lebanon payment program plan.
+  operatingMarketVerifiedBy String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -136,6 +147,9 @@ model AuditEvent {
   tenantId  String?
   payload   Json
   createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([type, createdAt])
 }
 
 /// Trainer-facing workflow state: an invoice-submitted webhook recorded a payment

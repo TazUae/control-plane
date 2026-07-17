@@ -44,6 +44,11 @@ type ResolvedTenant = FrappeTenant & {
   tenantId: string;
   companyName: string;
   currency: string;
+  // Phase 3 (operating-market): already present on the row `findUnique` below
+  // loads in full — returning these is a shape change, not a new query (D1).
+  operatingMarket: string | null;
+  operatingMarketSource: string | null;
+  operatingMarketVerifiedAt: Date | null;
 };
 
 async function resolveTenantFromAuth(
@@ -85,6 +90,9 @@ async function resolveTenantFromAuth(
     tenantId: tenant.id,
     companyName: tenant.companyName ?? "",
     currency: tenant.defaultCurrency ?? "USD",
+    operatingMarket: tenant.operatingMarket ?? null,
+    operatingMarketSource: tenant.operatingMarketSource ?? null,
+    operatingMarketVerifiedAt: tenant.operatingMarketVerifiedAt ?? null,
   };
 }
 
@@ -526,6 +534,34 @@ app.get(
         total: invoices.length,
         currency: tenant.currency,
         as_of: new Date().toISOString(),
+      });
+    });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// GET /api/erp/tenant/market
+//
+// Tenant-scoped read of the authoritative operating market (ADR-MKT-001).
+// Scope is the JWT `tenantId` claim, not a route parameter — there is no
+// input a caller can supply to read another tenant's market. Returns exactly
+// three fields; never `country`, never a credential.
+// ---------------------------------------------------------------------------
+
+app.get(
+  "/api/erp/tenant/market",
+  async (req, reply) => {
+    await withProxyError(reply, async () => {
+      const tenant = await resolveTenantFromAuth(req.headers.authorization);
+      const verified =
+        tenant.operatingMarket !== null &&
+        tenant.operatingMarketSource === "operator_verified";
+      reply.code(200).send({
+        operatingMarket: tenant.operatingMarket,
+        verified,
+        verifiedAt: tenant.operatingMarketVerifiedAt
+          ? tenant.operatingMarketVerifiedAt.toISOString()
+          : null,
       });
     });
   }

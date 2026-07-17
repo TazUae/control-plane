@@ -7,7 +7,12 @@ import {
 } from "../../middleware/idempotency.js";
 import { acquireLock, releaseLock } from "../../jobs/lock.js";
 import crypto from "crypto";
-import { CreateTenantSchema, GetTenantParamsSchema } from "./tenant.schemas.js";
+import {
+  CreateTenantSchema,
+  GetTenantParamsSchema,
+  OperatingMarketGrantSchema,
+  OperatingMarketRevokeSchema,
+} from "./tenant.schemas.js";
 import { getTenantById } from "./tenant.service.js";
 import { requireInternalApiKey } from "../../middleware/require-internal-api-key.js";
 import { provisioningQueue } from "../../lib/queue.js";
@@ -16,6 +21,12 @@ import { writeAuditEvent } from "../../lib/audit.js";
 import { getCountryDefaults, deriveFiscalYearName } from "../../lib/country-defaults.js";
 import { getProvisioningAdapter } from "../../lib/provisioning/index.js";
 import { readTenantErpCredentials } from "../../lib/tenant-credentials.js";
+import { isSupportedMarket } from "../../lib/markets.js";
+import {
+  grantOperatingMarket,
+  revokeOperatingMarket,
+  TenantNotFoundError,
+} from "./operating-market.service.js";
 
 app.get(
   "/tenants",
@@ -434,6 +445,94 @@ app.post(
       throw error;
     } finally {
       await releaseLock(lockKey, lock.token);
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Operating market grant / revoke (ADR-MKT-001, Phase 4)
+//
+// Admin-key-gated. Grants/revokes ELIGIBILITY only — never money movement,
+// never a Payment Entry, never an ERP write. See operating-market.service.ts
+// for the in-transaction audit design (D2/D3/D4/D16).
+// ---------------------------------------------------------------------------
+
+app.post(
+  "/tenants/:id/operating-market",
+  { preHandler: [requireInternalApiKey] },
+  async (req, reply) => {
+    const params = GetTenantParamsSchema.safeParse(req.params ?? {});
+    if (!params.success) {
+      return reply.code(422).send({
+        error: "Invalid request parameters",
+        details: params.error.flatten(),
+      });
+    }
+    const body = OperatingMarketGrantSchema.safeParse(req.body ?? {});
+    if (!body.success) {
+      return reply.code(400).send({
+        error: "Invalid request body",
+        details: body.error.flatten(),
+      });
+    }
+    if (!isSupportedMarket(body.data.market)) {
+      return reply.code(422).send({ error: `Unsupported market: ${body.data.market}` });
+    }
+
+    const requestId = String(req.id);
+    try {
+      const result = await grantOperatingMarket(
+        params.data.id,
+        body.data.market,
+        body.data.verifiedBy,
+        requestId
+      );
+      return reply.send(result);
+    } catch (error) {
+      if (error instanceof TenantNotFoundError) {
+        return reply.code(404).send({ error: "Tenant not found" });
+      }
+      throw error;
+    }
+  }
+);
+
+app.delete(
+  "/tenants/:id/operating-market",
+  { preHandler: [requireInternalApiKey] },
+  async (req, reply) => {
+    const params = GetTenantParamsSchema.safeParse(req.params ?? {});
+    if (!params.success) {
+      return reply.code(422).send({
+        error: "Invalid request parameters",
+        details: params.error.flatten(),
+      });
+    }
+    const body = OperatingMarketRevokeSchema.safeParse(req.body ?? {});
+    if (!body.success) {
+      return reply.code(400).send({
+        error: "Invalid request body",
+        details: body.error.flatten(),
+      });
+    }
+
+    const requestId = String(req.id);
+    try {
+      const result = await revokeOperatingMarket(
+        params.data.id,
+        body.data.verifiedBy,
+        requestId
+      );
+      return reply.send({
+        tenantId: result.tenantId,
+        operatingMarket: result.operatingMarket,
+        changed: result.changed,
+      });
+    } catch (error) {
+      if (error instanceof TenantNotFoundError) {
+        return reply.code(404).send({ error: "Tenant not found" });
+      }
+      throw error;
     }
   }
 );
